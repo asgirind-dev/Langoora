@@ -271,7 +271,7 @@ export default function AboutPage() {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold mb-4">Our Journey2</h2>
+            <h2 className="text-3xl font-bold mb-4">Our Journey</h2>
             <p className="text-gray-400 text-lg">
               From a small idea to Sri Lanka's #1 exam platform
             </p>
