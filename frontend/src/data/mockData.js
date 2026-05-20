@@ -1,12 +1,6 @@
 export const examCategories = [
   { id: 1, name: 'JLPT', flag: '🇯🇵', color: 'from-red-500 to-pink-600', description: 'Japanese Language Proficiency Test', levels: ['N1','N2','N3','N4','N5'], students: 12400 },
-  { id: 2, name: 'EPS-TOPIK', flag: '🇰🇷', color: 'from-blue-500 to-cyan-600', description: 'Employment Permit System Test', levels: ['Basic','Standard'], students: 9800 },
-  { id: 3, name: 'IELTS', flag: '🇬🇧', color: 'from-emerald-500 to-teal-600', description: 'International English Language Testing', levels: ['Academic','General'], students: 18600 },
-  { id: 4, name: 'HSK', flag: '🇨🇳', color: 'from-yellow-500 to-orange-600', description: 'Hanyu Shuiping Kaoshi (Chinese)', levels: ['1','2','3','4','5','6'], students: 7200 },
-  { id: 5, name: 'TOPIK', flag: '🇰🇷', color: 'from-sky-500 to-blue-600', description: 'Test of Proficiency in Korean', levels: ['I','II'], students: 6500 },
-  { id: 6, name: 'GRE', flag: '🇺🇸', color: 'from-violet-500 to-purple-600', description: 'Graduate Record Examinations', levels: ['Verbal','Quant','AWA'], students: 5400 },
-  { id: 7, name: 'SAT', flag: '🇺🇸', color: 'from-rose-500 to-red-600', description: 'Scholastic Assessment Test', levels: ['Math','EBRW'], students: 4100 },
-  { id: 8, name: 'TOEFL', flag: '🇺🇸', color: 'from-amber-500 to-yellow-600', description: 'Test of English as a Foreign Language', levels: ['iBT','PBT'], students: 8900 },
+  { id: 2, name: 'EPS-TOPIK', flag: '🇰🇷', color: 'from-blue-500 to-cyan-600', description: 'Employment Permit System Test', levels: ['Basic','Standard'], students: 9800 }
 ];
 
 export const topTutors = [
