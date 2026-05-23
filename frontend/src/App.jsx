@@ -46,6 +46,8 @@ import TutorApprovalsPage from './pages/admin/TutorApprovalsPage';
 import AdminRevenuePage from './pages/admin/AdminRevenuePage';
 import AuditLogsPage from './pages/admin/AuditLogsPage';
 
+
+
 function App() {
   return (
     <AuthProvider>
@@ -107,6 +109,7 @@ function App() {
         </Route>
 
         {/* Catch-all redirect */}
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
