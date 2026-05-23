@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Chrome } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Chrome, ShieldAlert } from 'lucide-react'; // ShieldAlert icon එක එකතු කළා
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -32,6 +32,15 @@ export default function LoginPage() {
     await new Promise(r => setTimeout(r, 1000));
     login({ name: 'Test User', email: form.email }, role);
     navigate(role === 'admin' ? '/admin' : role === 'tutor' ? '/tutor' : '/student');
+    setLoading(false);
+  };
+
+  // Admin විදිහට කෙලින්ම ලොග් වෙන්න වෙනම function එකක්
+  const handleAdminLogin = async () => {
+    setLoading(true);
+    await new Promise(r => setTimeout(r, 500));
+    login({ name: 'Admin User', email: 'admin@example.com' }, 'admin');
+    navigate('/admin');
     setLoading(false);
   };
 
@@ -100,9 +109,23 @@ export default function LoginPage() {
           <div className="relative flex justify-center"><span className="bg-[#060d1f] px-3 text-gray-500 text-sm">or continue with</span></div>
         </div>
 
-        <Button variant="secondary" size="lg" fullWidth type="button">
-          <Chrome size={18} className="text-blue-400" /> Continue with Google
-        </Button>
+        <div className="flex flex-col gap-3"> {/* බටන් දෙක අතර ඉඩ තියාගන්න container එකක් දැම්මා */}
+          <Button variant="secondary" size="lg" fullWidth type="button">
+            <Chrome size={18} className="text-blue-400" /> Continue with Google
+          </Button>
+
+          {/* මෙන්න අලුතින්ම එකතු කරපු බටන් එක */}
+          <Button 
+            variant="secondary" 
+            size="lg" 
+            fullWidth 
+            type="button"
+            onClick={handleAdminLogin}
+            className="border-red-500/20 hover:bg-red-500/5" // Admin නිසා පොඩි රතු පාට ගතියක් දුන්නා (ඕනෙම නම් අයින් කරන්න)
+          >
+            <ShieldAlert size={18} className="text-red-400" /> Sign in as Admin
+          </Button>
+        </div>
       </form>
 
       <p className="text-center text-gray-400 text-sm mt-6">
