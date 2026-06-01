@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
 import { AuthProvider } from './context/AuthContext';
 
 // Layouts
@@ -19,6 +19,7 @@ import ContactPage from './pages/public/ContactPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import UnderReviewPage from './pages/auth/UnderReviewPage';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -46,6 +47,25 @@ import TutorApprovalsPage from './pages/admin/TutorApprovalsPage';
 import AdminRevenuePage from './pages/admin/AdminRevenuePage';
 import AuditLogsPage from './pages/admin/AuditLogsPage';
 
+// PROTECTED ROUTE GUARD COMPONENT
+// Enforces role-based authentication rules according to system business rules
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, role } = useAuth();
+  const location = useLocation();
+
+  // If user session is not active, force redirect to login view context
+  if (!user) {
+    return <Navigate to="/auth/login" state={{ from: location }} replace />;
+  }
+
+  // Enforce validation gate: If user role is not explicitly authorized, fallback to default public interface
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 
 
 function App() {
@@ -69,6 +89,7 @@ function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="under-review" element={<UnderReviewPage />} />
         </Route>
 
         {/* Exam Interface (fullscreen, no layout wrapper) */}
