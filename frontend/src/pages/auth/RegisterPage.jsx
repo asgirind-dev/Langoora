@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, User, Phone, Calendar, GraduationCap, Upload, MapPin, ArrowRight, Chrome, BookOpen, DollarSign } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, Calendar, GraduationCap, Upload, MapPin, ArrowRight, Chrome, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -9,7 +9,10 @@ import Input from '../../components/ui/Input';
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { login } = useAuth();
+  
+  // Destructuring the Firebase register function from AuthContext
+  const { register } = useAuth();
+  
   const [role, setRole] = useState(params.get('role') || 'student');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,6 +24,16 @@ export default function RegisterPage() {
 
   const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.type === 'file' ? e.target.files[0] : e.target.value }));
 
+  // Helper function to convert file to Base64 string to bypass Firebase Storage paid block
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const fileReader = new FileReader();
+      fileReader.readAsDataURL(file);
+      fileReader.onload = () => resolve(fileReader.result);
+      fileReader.onerror = (error) => reject(error);
+    });
+  };
+
   const validate = () => {
     const e = {};
     if (!form.name) e.name = 'Full name is required';
@@ -31,6 +44,7 @@ export default function RegisterPage() {
     if (role === 'tutor') {
       if (!form.qualifications) e.qualifications = 'Qualifications required';
       if (!form.university) e.university = 'University required';
+      if (!form.certificate) e.certificate = 'Certificate file is required';
     }
     return e;
   };
@@ -39,10 +53,46 @@ export default function RegisterPage() {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    login({ name: form.name, email: form.email }, role);
-    navigate(role === 'tutor' ? '/tutor' : '/student');
+    setErrors({});
+
+    try {
+      let certificateBase64 = '';
+
+      // Convert file to base64 text string if user is a tutor
+      if (role === 'tutor' && form.certificate) {
+        certificateBase64 = await convertToBase64(form.certificate);
+      }
+
+      // Metadata schema matching Firestore boundaries
+      const userData = {
+        name: form.name,
+        phone: form.phone,
+        dob: form.dob,
+        ...(role === 'tutor' && {
+          university: form.university,
+          qualifications: form.qualifications,
+          address: form.address || '',
+          certificateData: certificateBase64 // Storing as base64 text directly inside Firestore
+        })
+      };
+
+      // Call register from AuthContext
+      await register(form.email, form.password, userData, role);
+      
+      if (role === 'tutor') {
+        navigate('/auth/under-review');
+      } else {
+        navigate('/student');
+      }
+    } catch (err) {
+      console.error("Registration workflow failure:", err);
+      alert("Registration Error: " + (err.message || "Failed to create account"));
+      setErrors({ server: err.message || 'Registration failed. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const roles = [
@@ -55,10 +105,17 @@ export default function RegisterPage() {
       <h2 className="text-3xl font-bold text-white mb-2">Create your account</h2>
       <p className="text-gray-400 mb-8">Join 24,000+ learners on Langoora</p>
 
+      {errors.server && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3.5 rounded-xl text-xs mb-5">
+          {errors.server}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 mb-8">
         {roles.map(r => (
           <button
             key={r.id}
+            type="button"
             onClick={() => setRole(r.id)}
             className={`p-4 rounded-xl border text-left transition-all ${
               role === r.id
@@ -93,17 +150,6 @@ export default function RegisterPage() {
             </button>
           </div>
           {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
-          {form.password && (
-            <div className="flex gap-1 mt-1">
-              {[1,2,3,4].map(i => (
-                <div key={i} className={`h-1 flex-1 rounded-full transition-all ${
-                  form.password.length >= i * 2
-                    ? i <= 2 ? 'bg-red-400' : i === 3 ? 'bg-yellow-400' : 'bg-emerald-400'
-                    : 'bg-white/10'
-                }`} />
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -120,6 +166,7 @@ export default function RegisterPage() {
               <Input label="Qualifications" placeholder="B.Ed Japanese, MA Linguistics..." icon={GraduationCap} value={form.qualifications} onChange={set('qualifications')} error={errors.qualifications} />
               <Input label="University / Institution" placeholder="University of Colombo" icon={GraduationCap} value={form.university} onChange={set('university')} error={errors.university} />
               <Input label="Address" placeholder="No. 12, Main Street, Colombo 03" icon={MapPin} value={form.address} onChange={set('address')} />
+              
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-300">Certificate Upload</label>
                 <label className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-dashed border-white/20 rounded-xl cursor-pointer hover:border-blue-500/40 transition-colors">
@@ -127,6 +174,7 @@ export default function RegisterPage() {
                   <span className="text-sm text-gray-400">{form.certificate ? form.certificate.name : 'Upload qualification certificate (PDF/JPG)'}</span>
                   <input type="file" accept=".pdf,.jpg,.png" onChange={set('certificate')} className="hidden" />
                 </label>
+                {errors.certificate && <p className="text-xs text-red-400 mt-0.5">{errors.certificate}</p>}
               </div>
             </motion.div>
           )}

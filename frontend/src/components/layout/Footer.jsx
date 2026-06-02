@@ -16,9 +16,7 @@ const footerLinks = {
   ],
   Exams: [
     { label: 'JLPT', href: '/marketplace?category=JLPT' },
-    { label: 'EPS-TOPIK', href: '/marketplace?category=EPS-TOPIK' },
-    { label: 'IELTS', href: '/marketplace?category=IELTS' },
-    { label: 'GRE & SAT', href: '/marketplace?category=GRE' },
+    { label: 'EPS-TOPIK', href: '/marketplace?category=EPS-TOPIK' }
   ],
 };
 

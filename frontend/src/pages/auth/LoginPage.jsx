@@ -37,8 +37,7 @@ export default function LoginPage() {
 
   const roles = [
     { id: 'student', label: 'Student', desc: 'Prepare for exams' },
-    { id: 'tutor', label: 'Tutor', desc: 'Teach & earn' },
-    { id: 'admin', label: 'Admin', desc: 'Manage platform' },
+    { id: 'tutor', label: 'Tutor', desc: 'Teach & earn' }
   ];
 
   return (
@@ -46,7 +45,7 @@ export default function LoginPage() {
       <h2 className="text-3xl font-bold text-white mb-2">Welcome back</h2>
       <p className="text-gray-400 mb-8">Sign in to continue your learning journey</p>
 
-      <div className="flex gap-2 mb-8 p-1 bg-white/5 rounded-xl border border-white/10">
+      {/* <div className="flex gap-2 mb-8 p-1 bg-white/5 rounded-xl border border-white/10">
         {roles.map(r => (
           <button
             key={r.id}
@@ -58,7 +57,7 @@ export default function LoginPage() {
             {r.label}
           </button>
         ))}
-      </div>
+      </div> */}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
