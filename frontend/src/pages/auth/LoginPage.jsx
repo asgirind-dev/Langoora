@@ -24,15 +24,46 @@ export default function LoginPage() {
     return e;
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    login({ name: 'Test User', email: form.email }, role);
-    navigate(role === 'admin' ? '/admin' : role === 'tutor' ? '/tutor' : '/student');
-    setLoading(false);
+    try {
+      // 💡 Authenticate user credentials and fetch user account details from database
+      // This function retrieves document fields including 'role' and 'status' from Firestore.
+      const userData = await login(form.email, form.password);
+
+      // 💡 Extract actual authenticated state values for conditional routing logic
+      const userRole = userData?.role;
+      const userStatus = userData?.status;
+
+      if (userRole === 'admin') {
+        navigate('/admin');
+      } 
+      else if (userRole === 'validator') {
+        navigate('/validator');
+      } 
+      else if (userRole === 'tutor') {
+        // 💡 Check verification workflow state for tutor accounts
+        if (userStatus === 'pending') {
+          navigate('/auth/under-review'); // ⏳ Restrict access and route to verification holding view
+        } else {
+          navigate('/tutor'); // ✅ Grant full dashboard access if account status is active/approved
+        }
+      } 
+      else {
+        navigate('/student'); // 🎓 Fallback default routing context for students
+      }
+
+    } catch (error) {
+      console.error("Login Error: ", error);
+      // 💡 Handle authentication exceptions and pass error context to UI layer
+      setErrors({ auth: error.message || "Invalid login credentials" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const roles = [
