@@ -1,5 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
+import { AuthProvider, useAuth } from './context/AuthContext'; 
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
@@ -7,6 +7,7 @@ import AuthLayout from './layouts/AuthLayout';
 import StudentLayout from './layouts/StudentLayout';
 import TutorLayout from './layouts/TutorLayout';
 import AdminLayout from './layouts/AdminLayout';
+import ValidatorLayout from './layouts/AcademicValidatorLayout'; 
 
 // Public Pages
 import LandingPage from './pages/public/LandingPage';
@@ -19,6 +20,7 @@ import ContactPage from './pages/public/ContactPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import UnderReviewPage from './pages/auth/UnderReviewPage';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -46,6 +48,28 @@ import TutorApprovalsPage from './pages/admin/TutorApprovalsPage';
 import AdminRevenuePage from './pages/admin/AdminRevenuePage';
 import AuditLogsPage from './pages/admin/AuditLogsPage';
 
+// Academic Validator Pages
+import AcademicValidatorDashboard from './pages/validator/AcademicValidatorDashboard';
+import TutorVerificationPage from './pages/validator/TutorVerificationPage';
+import ContentDisputePage from './pages/validator/ContentDisputePage';
+import ExamQualityAuditsPage from './pages/validator/ExamQualityAuditsPage';
+
+// PROTECTED ROUTE GUARD COMPONENT
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, role } = useAuth();
+  const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/auth/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -67,9 +91,10 @@ function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="under-review" element={<UnderReviewPage />} />
         </Route>
 
-        {/* Exam Interface (fullscreen, no layout wrapper) */}
+        {/* Exam Interface */}
         <Route path="/exam/:id/take" element={<ExamTakePage />} />
         <Route path="/exam/:id/results" element={<ExamResultsPage />} />
 
@@ -104,6 +129,14 @@ function App() {
           <Route path="revenue" element={<AdminRevenuePage />} />
           <Route path="logs" element={<AuditLogsPage />} />
           <Route path="security" element={<AuditLogsPage />} />
+        </Route>
+
+        {/* 💡 Academic Validator Dashboard Routes (අලුතෙන් එකතු කරපු කොටස) */}
+        <Route path="/validator" element={<ValidatorLayout />}>
+          <Route index element={<Navigate to="tutor-verification" replace />} />
+          <Route path="tutor-verification" element={<TutorVerificationPage />} />
+          <Route path="content-disputes" element={<ContentDisputePage />} />
+          <Route path="quality-audits" element={<ExamQualityAuditsPage />} />
         </Route>
 
         {/* Catch-all redirect */}
