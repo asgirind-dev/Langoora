@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button';
 import GlassCard from '../../components/ui/GlassCard';
 import StarRating from '../../components/ui/StarRating';
 import Badge from '../../components/ui/Badge';
+import { useAuth } from '../../context/AuthContext';
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
@@ -26,8 +27,23 @@ const stagger = {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTestimonial, setActiveTestimonial] = useState(0);
+
+  const handleTutorOnboarding = () => {
+    if (user) {
+      if (user.role === 'tutor' && user.status === 'pending') {
+        navigate('/auth/under-review');
+      } else if (user.role === 'tutor') {
+        navigate('/tutor');
+      } else {
+        navigate('/student'); 
+      }
+    } else {
+      navigate('/auth/register?role=tutor');
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setActiveTestimonial(p => (p + 1) % testimonials.length), 4000);
@@ -256,8 +272,7 @@ export default function LandingPage() {
               <h2 className="text-4xl font-bold mb-2">Top Tutors</h2>
               <p className="text-gray-400">Certified experts helping thousands of students pass every year</p>
             </div>
-            <Button variant="outline" onClick={() => navigate('/auth/register?role=tutor')}>Become a Tutor <ChevronRight size={16} /></Button>
-          </motion.div>
+          <Button variant="outline" onClick={handleTutorOnboarding}>Become a Tutor <ChevronRight size={16} /></Button>                </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
             {topTutors.map((tutor, i) => (
               <motion.div key={tutor.id} {...stagger} transition={{ duration: 0.4, delay: i * 0.1 }}>
@@ -394,9 +409,9 @@ export default function LandingPage() {
                   <Button variant="primary" size="xl" onClick={() => navigate('/auth/register')}>
                     Start Learning Free <ArrowRight size={20} />
                   </Button>
-                  <Button variant="secondary" size="xl" onClick={() => navigate('/auth/register?role=tutor')}>
+                  <Button variant="secondary" size="xl" onClick={handleTutorOnboarding}>
                     Become a Tutor
-                  </Button>
+                  </Button> 
                 </div>
               </GlassCard>
             </div>

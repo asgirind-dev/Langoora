@@ -5,16 +5,16 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
 
-// Your web app's Firebase configuration
+// Secure configuration using Vite Environment Variables
 const firebaseConfig = {
-  apiKey: "AIzaSyCqRwnYE3HwuIwyWuQvXZd44U_LFaoAVEw",
-  authDomain: "langoora.firebaseapp.com",
-  databaseURL: "https://langoora-default-rtdb.firebaseio.com",
-  projectId: "langoora",
-  storageBucket: "langoora.firebasestorage.app",
-  messagingSenderId: "30330129268",
-  appId: "1:30330129268:web:2662648d3157d529583a21",
-  measurementId: "G-CN29S2L9YV"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase Application Context
@@ -24,4 +24,4 @@ const analytics = getAnalytics(app);
 // Initialize Firebase Services and Export references for global architecture
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app); 
+export const storage = getStorage(app);

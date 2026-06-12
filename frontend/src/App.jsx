@@ -1,5 +1,5 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
-import { AuthProvider, useAuth } from './context/AuthContext'; 
+import { Routes, Route, Navigate } from 'react-router-dom'; 
+import { AuthProvider } from './context/AuthContext'; 
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
@@ -44,31 +44,15 @@ import TutorProfilePage from './pages/tutor/TutorProfilePage';
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagementPage from './pages/admin/UserManagementPage';
-import TutorApprovalsPage from './pages/admin/TutorApprovalsPage';
 import AdminRevenuePage from './pages/admin/AdminRevenuePage';
 import AuditLogsPage from './pages/admin/AuditLogsPage';
+import SystemSecurity from './pages/admin/SystemSecurity'; 
 
-// Academic Validator Pages
+// Academic Validator Pages 
 import AcademicValidatorDashboard from './pages/validator/AcademicValidatorDashboard';
 import TutorVerificationPage from './pages/validator/TutorVerificationPage';
 import ContentDisputePage from './pages/validator/ContentDisputePage';
 import ExamQualityAuditsPage from './pages/validator/ExamQualityAuditsPage';
-
-// PROTECTED ROUTE GUARD COMPONENT
-const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, role } = useAuth();
-  const location = useLocation();
-
-  if (!user) {
-    return <Navigate to="/auth/login" state={{ from: location }} replace />;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(role)) {
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
-};
 
 function App() {
   return (
@@ -124,16 +108,15 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagementPage />} />
-          <Route path="approvals" element={<TutorApprovalsPage />} />
           <Route path="exams" element={<AdminDashboard />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
           <Route path="logs" element={<AuditLogsPage />} />
-          <Route path="security" element={<AuditLogsPage />} />
+          <Route path="security" element={<SystemSecurity />} /> 
         </Route>
 
-        {/* 💡 Academic Validator Dashboard Routes (අලුතෙන් එකතු කරපු කොටස) */}
+        {/* Academic Validator Dashboard Routes */}
         <Route path="/validator" element={<ValidatorLayout />}>
-          <Route index element={<Navigate to="tutor-verification" replace />} />
+          <Route index element={<AcademicValidatorDashboard />} />
           <Route path="tutor-verification" element={<TutorVerificationPage />} />
           <Route path="content-disputes" element={<ContentDisputePage />} />
           <Route path="quality-audits" element={<ExamQualityAuditsPage />} />

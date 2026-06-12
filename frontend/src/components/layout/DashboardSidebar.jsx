@@ -1,5 +1,4 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { BookOpen, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -15,6 +14,7 @@ export default function DashboardSidebar({ navItems, basePath }) {
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-[#060d1f] border-r border-white/10 flex flex-col z-30">
+      {/* Branding Area */}
       <div className="p-5 border-b border-white/10">
         <Link to="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
@@ -24,6 +24,7 @@ export default function DashboardSidebar({ navItems, basePath }) {
         </Link>
       </div>
 
+      {/* User Session Profile Profile */}
       {user && (
         <div className="p-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -38,15 +39,22 @@ export default function DashboardSidebar({ navItems, basePath }) {
         </div>
       )}
 
+      {/* Navigation Links */}
       <nav className="flex-1 p-4 overflow-y-auto">
         <ul className="space-y-1">
           {navItems.map(item => {
-            const isActive = location.pathname === `${basePath}${item.path}` ||
-              (item.path === '' && location.pathname === basePath);
+
+            const fullPath = item.path === '' ? basePath : `${basePath}/${item.path}`;
+            
+
+            const isActive = item.path === '' 
+              ? location.pathname === basePath 
+              : location.pathname.startsWith(fullPath);
+
             return (
               <li key={item.label}>
                 <Link
-                  to={`${basePath}${item.path}`}
+                  to={fullPath}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                     isActive
                       ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
@@ -63,6 +71,7 @@ export default function DashboardSidebar({ navItems, basePath }) {
         </ul>
       </nav>
 
+      {/* Logout Footer Component */}
       <div className="p-4 border-t border-white/10">
         <button
           onClick={handleLogout}
