@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, User, Phone, Calendar, GraduationCap, Upload, MapPin, ArrowRight, Chrome, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
@@ -10,8 +10,7 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   
-  // Destructuring the Firebase register function from AuthContext
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth(); // 🔥 Destructured loginWithGoogle
   
   const [role, setRole] = useState(params.get('role') || 'student');
   const [showPass, setShowPass] = useState(false);
@@ -24,7 +23,6 @@ export default function RegisterPage() {
 
   const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.type === 'file' ? e.target.files[0] : e.target.value }));
 
-  // Helper function to convert file to Base64 string to bypass Firebase Storage paid block
   const convertToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const fileReader = new FileReader();
@@ -59,13 +57,10 @@ export default function RegisterPage() {
 
     try {
       let certificateBase64 = '';
-
-      // Convert file to base64 text string if user is a tutor
       if (role === 'tutor' && form.certificate) {
         certificateBase64 = await convertToBase64(form.certificate);
       }
 
-      // Metadata schema matching Firestore boundaries
       const userData = {
         name: form.name,
         phone: form.phone,
@@ -74,11 +69,10 @@ export default function RegisterPage() {
           university: form.university,
           qualifications: form.qualifications,
           address: form.address || '',
-          certificateData: certificateBase64 // Storing as base64 text directly inside Firestore
+          certificateData: certificateBase64
         })
       };
 
-      // Call register from AuthContext
       await register(form.email, form.password, userData, role);
       
       if (role === 'tutor') {
@@ -88,8 +82,23 @@ export default function RegisterPage() {
       }
     } catch (err) {
       console.error("Registration workflow failure:", err);
-      alert("Registration Error: " + (err.message || "Failed to create account"));
       setErrors({ server: err.message || 'Registration failed. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔥 NEW: Google Action Redirect Handler for Registration route
+  const handleGoogleClick = async () => {
+    setLoading(true);
+    setErrors({});
+    try {
+      // Because backend intercepts missing documents and injects default "student" layout roles
+      await loginWithGoogle();
+      navigate('/student');
+    } catch (err) {
+      console.error("Google authentication registration failed:", err);
+      setErrors({ server: err.message || "Google single sign-on system breakdown." });
     } finally {
       setLoading(false);
     }
@@ -189,7 +198,8 @@ export default function RegisterPage() {
           <div className="relative flex justify-center"><span className="bg-[#060d1f] px-3 text-gray-500 text-sm">or</span></div>
         </div>
 
-        <Button variant="secondary" size="lg" fullWidth type="button">
+        {/* 🔥 FIXED: Wired Google Popup interface action */}
+        <Button variant="secondary" size="lg" fullWidth type="button" onClick={handleGoogleClick} disabled={loading}>
           <Chrome size={18} className="text-blue-400" /> Continue with Google
         </Button>
       </form>
