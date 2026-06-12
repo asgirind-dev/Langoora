@@ -5,10 +5,9 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { 
-  Users, BookOpen, UserCheck, AlertCircle, CheckCircle, 
-  ShieldAlert, Clock, Eye, MessageSquare, ShieldCheck, Flag 
+  Users, CheckCircle, ShieldAlert, Clock, Eye, MessageSquare, ShieldCheck, Flag 
 } from 'lucide-react';
-import { db } from '../../firebaseConfig'; // 👈 Check your path buddy
+import { db } from '../../firebaseConfig'; 
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import GlassCard from '../../components/ui/GlassCard';
 import Badge from '../../components/ui/Badge';
@@ -48,6 +47,7 @@ export default function AcademicValidatorDashboard() {
     setLoading(true);
     try {
       const usersRef = collection(db, 'users');
+      // Queries matching user document structure (role: 'tutor', status: 'pending')
       const q = query(usersRef, where('role', '==', 'tutor'), where('status', '==', 'pending'));
       const querySnapshot = await getDocs(q);
       
@@ -73,8 +73,10 @@ export default function AcademicValidatorDashboard() {
       const tutorRef = doc(db, 'users', tutorId);
       await updateDoc(tutorRef, { status: 'active' });
       setTutors(prev => prev.filter(t => t.id !== tutorId));
+      alert("Instructor account status updated to active successfully!");
     } catch (error) {
       console.error("Approval state synchronization crashed:", error);
+      alert("Failed to synchronize active state to database.");
     }
   };
 
@@ -94,10 +96,11 @@ export default function AcademicValidatorDashboard() {
   // 4. RESOLVE EXAM FLAG ACTION (Instant post-flag handler)
   const handleResolveFlag = (flagId) => {
     setFlags(prev => prev.filter(f => f.id !== flagId));
+    alert("Flag parameters archived and resolved.");
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-2">
       {/* Dynamic Upper Layout Heading */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center justify-between">
@@ -125,7 +128,7 @@ export default function AcademicValidatorDashboard() {
           { label: 'System Accuracy', value: '98.2%', icon: CheckCircle, color: 'text-cyan-400' },
         ].map((s, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-            <GlassCard className="p-4">
+            <GlassCard className="p-4 border-white/10">
               <s.icon size={18} className={`${s.color} mb-2`} />
               <div className="text-2xl font-bold text-white">{s.value}</div>
               <div className="text-xs text-gray-400 mt-1">{s.label}</div>
@@ -136,7 +139,7 @@ export default function AcademicValidatorDashboard() {
 
       {/* Charts Layer - Visual Analytics Alignment */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2 p-6">
+        <GlassCard className="lg:col-span-2 p-6 border-white/10">
           <h3 className="text-lg font-semibold text-white mb-5">Audit Resolution Velocity</h3>
           <ResponsiveContainer width="100%" height={230}>
             <AreaChart data={flagTrendsData}>
@@ -157,7 +160,7 @@ export default function AcademicValidatorDashboard() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-6 border-white/10">
           <h3 className="text-lg font-semibold text-white mb-5">Issue Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -212,7 +215,8 @@ export default function AcademicValidatorDashboard() {
                   <p className="font-medium text-white text-sm">{t.name || 'Anonymous Instructor'}</p>
                   <p className="text-xs text-gray-400">{t.email} · {t.university || 'Independent Instructor'}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge color="blue">{t.specialty || 'Language Educator'}</Badge>
+                    {/* Updated to match 'qualifications' field in your actual Firestore doc */}
+                    <Badge color="blue">{t.qualifications || 'Language Educator'}</Badge>
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       <Clock size={11} /> UID: {t.id.substring(0, 8)}
                     </span>

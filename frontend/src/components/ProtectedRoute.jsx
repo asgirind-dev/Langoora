@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; 
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth(); // Extracted 'role' from global context state instance
   const location = useLocation();
 
   // Show a global loading spinner while Firebase resolves authentication state
@@ -14,28 +14,34 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  // 1. Redirect unauthenticated users straight to the login page
+  // GATE 1: Redirect unauthenticated users straight to the centralized login view
   if (!user) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
-  // 2. Route restriction for tutors whose accounts are still pending admin verification
-  if (user.role === 'tutor' && user.status === 'pending') {
+  // GATE 2: Route restriction for tutors whose profiles are still pending structural admin/validator verification
+  if (role === 'tutor' && user.status === 'pending') {
     if (location.pathname !== '/auth/under-review') {
       return <Navigate to="/auth/under-review" replace />;
     }
   }
 
-  // 3. Prevent approved users from manually revisiting the under-review screen
+  // GATE 3: Prevent approved production consumers from manually revisiting the under-review screen backyards
   if (user.status === 'approved' && location.pathname === '/auth/under-review') {
-    return <Navigate to={user.role === 'tutor' ? '/tutor' : '/student'} replace />;
+    // Dynamic fallbacks matching correct workspace layouts
+    if (role === 'admin') return <Navigate to="/admin" replace />;
+    if (role === 'validator') return <Navigate to="/validator" replace />;
+    return <Navigate to={role === 'tutor' ? '/tutor' : '/student'} replace />;
   }
 
-  // 4. Enforce role-based access control rules across workspace dashboards
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === 'tutor' ? '/tutor' : '/student'} replace />;
+  // GATE 4: Enforce granular Role-Based Access Control (RBAC) rules across workspace nodes
+  // If the logged-in user's role is not included in the allowedRoles array, block access and redirect
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    if (role === 'admin') return <Navigate to="/admin" replace />;
+    if (role === 'validator') return <Navigate to="/validator" replace />;
+    return <Navigate to={role === 'tutor' ? '/tutor' : '/student'} replace />;
   }
 
-  // Render the requested core workspace layout nodes if all validation gates pass
+  // Render the requested core workspace layout nodes safely if all structural firewall validation gates pass
   return children;
 }

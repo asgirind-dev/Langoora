@@ -6,44 +6,44 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig'; // Importing instances from config
+import { auth, db } from '../firebaseConfig';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // 'student' | 'tutor' | 'admin' | 'validator'
-  const [loading, setLoading] = useState(true); // Keeps track of initial session state validation
+  const [role, setRole] = useState(null); 
+  const [privileges, setPrivileges] = useState([]); // <-- New state to store granular UBAC tokens
+  const [loading, setLoading] = useState(true); 
 
-  // 1. REGISTER WORKFLOW (Firebase Auth + Firestore Profile Mapping)
+  // 1. REGISTER WORKFLOW
   const register = async (email, password, userData, userRole) => {
     try {
-      // Create user credential entry inside Firebase Authentication core engine
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // Prepare core system metadata mapping payload
       const userProfile = {
         uid: firebaseUser.uid,
         email: email.toLowerCase(),
         role: userRole,
-        status: userRole === 'tutor' ? 'pending' : 'active', // Tutors require review verification gate
+        status: userRole === 'tutor' ? 'pending' : 'active', 
+        privileges: userRole === 'validator' ? [] : undefined, // <-- Initialize empty array for validators
         ...userData,
         createdAt: new Date().toISOString()
       };
 
-      // Atomic commit to Cloud Firestore base "users" collection context
       await setDoc(doc(db, "users", firebaseUser.uid), userProfile);
 
-      // Handle explicit memory state injection logic for direct logins
-      if (userRole !== 'tutor') {
-        setUser(firebaseUser);
-        setRole(userRole);
-      } else {
-        // Tutors sessions are structured as null upon entry to prevent bypass
-        setUser(null);
-        setRole(null);
-      }
+      // Keep custom fields attached to user state instance
+      setUser({ 
+        ...firebaseUser, 
+        role: userProfile.role, 
+        status: userProfile.status,
+        privileges: userProfile.privileges || [] 
+      });
+      setRole(userRole);
+      setPrivileges(userProfile.privileges || []);
+      
       return userProfile;
     } catch (error) {
       console.error("Auth Engine Registration Failure:", error);
@@ -51,18 +51,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 2. LOGIN WORKFLOW (Fetch metadata profiles on verification check)
+  // 2. LOGIN WORKFLOW
   const login = async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Pull identity document record mapping profile from Cloud Firestore
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
       
       if (userDoc.exists()) {
         const profileData = userDoc.data();
-        setUser(userCredential.user);
+        
+        // Inject database metadata parameters including UBAC privileges array into global state instance
+        setUser({
+          ...userCredential.user,
+          role: profileData.role,
+          status: profileData.status,
+          name: profileData.name,
+          privileges: profileData.privileges || []
+        });
         setRole(profileData.role);
+        setPrivileges(profileData.privileges || []);
+        
         return profileData;
       } else {
         throw new Error("User metadata document profile missing inside Firestore index repository.");
@@ -78,10 +86,10 @@ export const AuthProvider = ({ children }) => {
     await signOut(auth);
     setUser(null);
     setRole(null);
+    setPrivileges([]); // <-- Reset privileges vector completely upon session termination
   };
 
   // 4. SESSION OBSERVER LIFECYCLE HOOK
-  // Runs immediately on viewport initialization to lock active sessions
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -90,14 +98,15 @@ export const AuthProvider = ({ children }) => {
           if (userDoc.exists()) {
             const profileData = userDoc.data();
             
-            // Check condition to filter pending validation accounts
-            if (profileData.role === 'tutor' && profileData.status === 'pending') {
-              setUser(null);
-              setRole(null);
-            } else {
-              setUser(firebaseUser);
-              setRole(profileData.role);
-            }
+            setUser({
+              ...firebaseUser,
+              role: profileData.role,
+              status: profileData.status,
+              name: profileData.name,
+              privileges: profileData.privileges || []
+            });
+            setRole(profileData.role);
+            setPrivileges(profileData.privileges || []);
           }
         } catch (err) {
           console.error("Session lifecycle state resolution crash:", err);
@@ -105,6 +114,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         setUser(null);
         setRole(null);
+        setPrivileges([]);
       }
       setLoading(false);
     });
@@ -113,7 +123,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role, register, login, logout }}>
+    <AuthContext.Provider value={{ user, role, privileges, register, login, logout }}>
       {!loading && children}
     </AuthContext.Provider>
   );

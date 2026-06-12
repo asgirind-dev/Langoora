@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState('student');
 
   const validate = () => {
     const e = {};
@@ -24,71 +23,61 @@ export default function LoginPage() {
     return e;
   };
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (Object.keys(errs).length > 0) { 
+      setErrors(errs); 
+      return; 
+    }
     
     setLoading(true);
+    setErrors({}); // Clear previous errors if any
+
     try {
-      // 💡 Authenticate user credentials and fetch user account details from database
-      // This function retrieves document fields including 'role' and 'status' from Firestore.
-      const userData = await login(form.email, form.password);
+      // 1. Trigger the Firebase Auth & Firestore verification login workflow
+      // This returns the profileData containing 'role', 'status', and 'privileges'
+      const authenticatedUser = await login(form.email, form.password);
 
-      // 💡 Extract actual authenticated state values for conditional routing logic
-      const userRole = userData?.role;
-      const userStatus = userData?.status;
-
-      if (userRole === 'admin') {
+      // 2. Evaluate routing criteria based on database profile roles and account lifecycle states
+      if (authenticatedUser && authenticatedUser.role === 'admin') {
         navigate('/admin');
       } 
-      else if (userRole === 'validator') {
+      else if (authenticatedUser && authenticatedUser.role === 'validator') {
+      
         navigate('/validator');
       } 
-      else if (userRole === 'tutor') {
-        // 💡 Check verification workflow state for tutor accounts
-        if (userStatus === 'pending') {
-          navigate('/auth/under-review'); // ⏳ Restrict access and route to verification holding view
+      else if (authenticatedUser && authenticatedUser.role === 'tutor') {
+        if (authenticatedUser.status === 'pending') {
+          navigate('/auth/under-review');
         } else {
-          navigate('/tutor'); // ✅ Grant full dashboard access if account status is active/approved
+          navigate('/tutor');
         }
       } 
       else {
-        navigate('/student'); // 🎓 Fallback default routing context for students
+        // Fallback target for students or standard consumers
+        navigate('/student');
       }
 
-    } catch (error) {
-      console.error("Login Error: ", error);
-      // 💡 Handle authentication exceptions and pass error context to UI layer
-      setErrors({ auth: error.message || "Invalid login credentials" });
+    } catch (err) {
+      console.error("Authentication submission rejected:", err);
+      // Display friendly error message if user password or email is incorrect
+      setErrors({ server: err.message || "Failed to log in. Please check your credentials." });
     } finally {
       setLoading(false);
     }
   };
-
-  const roles = [
-    { id: 'student', label: 'Student', desc: 'Prepare for exams' },
-    { id: 'tutor', label: 'Tutor', desc: 'Teach & earn' }
-  ];
 
   return (
     <div>
       <h2 className="text-3xl font-bold text-white mb-2">Welcome back</h2>
       <p className="text-gray-400 mb-8">Sign in to continue your learning journey</p>
 
-      {/* <div className="flex gap-2 mb-8 p-1 bg-white/5 rounded-xl border border-white/10">
-        {roles.map(r => (
-          <button
-            key={r.id}
-            onClick={() => setRole(r.id)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              role === r.id ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div> */}
+      {errors.server && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl mb-4 text-center">
+          {errors.server}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
@@ -100,6 +89,7 @@ const handleSubmit = async (e) => {
           onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
           error={errors.email}
         />
+        
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-300">Password</label>
           <div className="relative">

@@ -16,7 +16,7 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, role, logout } = useAuth();
+  const { user, logout } = useAuth(); // Destructured 'user' directly to evaluate inline roles and profile metadata states
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,10 +25,26 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
-  const getDashboardPath = () => {
-    if (role === 'admin') return '/admin';
-    if (role === 'tutor') return '/tutor';
-    return '/student';
+  // Centralized navigation engine evaluating granular verification rules before routing
+  const handleDashboardNavigation = () => {
+    if (!user) {
+      navigate('/auth/login');
+      return;
+    }
+
+    // Explicitly fallback to structured lifecycle targets depending on account status and system access tiers
+    if (user.role === 'tutor') {
+      if (user.status === 'pending') {
+        navigate('/auth/under-review');
+      } else {
+        navigate('/tutor');
+      }
+    } else if (user.role === 'admin') {
+      navigate('/admin');
+    } else {
+      // Default trajectory safely mapped for active students
+      navigate('/student');
+    }
   };
 
   return (
@@ -57,10 +73,11 @@ export default function Navbar() {
             ))}
           </div>
 
+          {/* Desktop Navigation Group */}
           <div className="hidden lg:flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="sm" onClick={() => navigate(getDashboardPath())}>Dashboard</Button>
+                <Button variant="ghost" size="sm" onClick={handleDashboardNavigation}>Dashboard</Button>
                 <Button variant="secondary" size="sm" onClick={logout}>Logout</Button>
               </div>
             ) : (
@@ -77,6 +94,7 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Mobile Menu Dropdown Group */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -93,7 +111,7 @@ export default function Navbar() {
               ))}
               {user ? (
                 <>
-                  <Button variant="secondary" size="sm" fullWidth onClick={() => { navigate(getDashboardPath()); setMenuOpen(false); }}>Dashboard</Button>
+                  <Button variant="secondary" size="sm" fullWidth onClick={() => { handleDashboardNavigation(); setMenuOpen(false); }}>Dashboard</Button>
                   <Button variant="ghost" size="sm" fullWidth onClick={() => { logout(); setMenuOpen(false); }}>Logout</Button>
                 </>
               ) : (

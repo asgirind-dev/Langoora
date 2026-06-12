@@ -1,13 +1,13 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts';
-import { Users, BookOpen, DollarSign, UserCheck, TrendingUp, AlertCircle, Activity } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Users, BookOpen, DollarSign, UserCheck, AlertCircle, Activity } from 'lucide-react';
+import { db } from '../../firebaseConfig';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import GlassCard from '../../components/ui/GlassCard';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { adminStats, recentTransactions, pendingTutors } from '../../data/mockData';
+import { adminStats, recentTransactions } from '../../data/mockData';
 
 const revenueData = [
   { month: 'Jan', revenue: 1200000 },
@@ -27,6 +27,37 @@ const examDistribution = [
 ];
 
 export default function AdminDashboard() {
+  const [pendingTutors, setPendingTutors] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real-time pending tutors from Firestore to sync with Validator Panel
+  const fetchPendingTutors = async () => {
+    try {
+      const q = query(collection(db, 'users'), where('role', '==', 'tutor'), where('status', '==', 'pending'));
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPendingTutors(list);
+    } catch (err) {
+      console.error("Error syncing dashboard stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingTutors();
+  }, []);
+
+  const handleStatusUpdate = async (id, newStatus) => {
+    try {
+      await updateDoc(doc(db, 'users', id), { status: newStatus });
+      setPendingTutors(prev => prev.filter(t => t.id !== id));
+      alert(`Tutor status synced as ${newStatus}!`);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -35,16 +66,16 @@ export default function AdminDashboard() {
             <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
             <p className="text-gray-400 mt-1">Platform overview and management</p>
           </div>
-          {adminStats.pendingApprovals > 0 && (
+          {pendingTutors.length > 0 && (
             <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl">
               <AlertCircle size={16} className="text-amber-400" />
-              <span className="text-amber-300 text-sm font-medium">{adminStats.pendingApprovals} pending approvals</span>
+              <span className="text-amber-300 text-sm font-medium">{pendingTutors.length} pending approvals</span>
             </div>
           )}
         </div>
       </motion.div>
 
-      {/* Stats */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
           { label: 'Total Users', value: adminStats.totalUsers.toLocaleString(), icon: Users, color: 'text-blue-400' },
@@ -52,10 +83,10 @@ export default function AdminDashboard() {
           { label: 'Active Tutors', value: adminStats.activeTutors, icon: UserCheck, color: 'text-emerald-400' },
           { label: 'Total Exams', value: adminStats.totalExams.toLocaleString(), icon: BookOpen, color: 'text-amber-400' },
           { label: 'Revenue', value: 'LKR 18.4M', icon: DollarSign, color: 'text-green-400' },
-          { label: 'Pending', value: adminStats.pendingApprovals, icon: AlertCircle, color: 'text-red-400' },
+          { label: 'Pending Requests', value: pendingTutors.length, icon: AlertCircle, color: 'text-red-400' },
         ].map((s, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-            <GlassCard className="p-4">
+            <GlassCard className="p-4 border-white/10">
               <s.icon size={18} className={`${s.color} mb-2`} />
               <div className="text-2xl font-bold text-white">{s.value}</div>
               <div className="text-xs text-gray-400 mt-1">{s.label}</div>
@@ -64,9 +95,9 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Charts */}
+      {/* Charts Layer */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2 p-6">
+        <GlassCard className="lg:col-span-2 p-6 border-white/10">
           <h3 className="text-lg font-semibold text-white mb-5">Platform Revenue</h3>
           <ResponsiveContainer width="100%" height={230}>
             <AreaChart data={revenueData}>
@@ -85,7 +116,7 @@ export default function AdminDashboard() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-6 border-white/10">
           <h3 className="text-lg font-semibold text-white mb-5">Exam Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -101,40 +132,44 @@ export default function AdminDashboard() {
         </GlassCard>
       </div>
 
-      {/* Pending Tutor Approvals */}
-      <GlassCard className="p-6">
+      {/* Live Firestore Pending Tutor Gate */}
+      <GlassCard className="p-6 border-white/10">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <UserCheck size={18} className="text-amber-400" /> Pending Tutor Approvals
             <Badge color="amber">{pendingTutors.length}</Badge>
           </h3>
-          <Button variant="ghost" size="sm">View All</Button>
         </div>
         <div className="space-y-3">
-          {pendingTutors.map((t, i) => (
-            <div key={t.id} className="flex items-center gap-4 p-4 bg-white/3 rounded-xl border border-white/8">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                {t.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-white text-sm">{t.name}</p>
-                <p className="text-xs text-gray-400">{t.email} · {t.university}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge color="blue">{t.exam}</Badge>
-                  <span className="text-xs text-gray-500">Submitted: {t.submitted}</span>
+          {loading ? (
+            <p className="text-sm text-gray-500 animate-pulse">Streaming database records...</p>
+          ) : pendingTutors.length === 0 ? (
+            <p className="text-sm text-gray-500">No instructors currently awaiting verification parameters.</p>
+          ) : (
+            pendingTutors.map((t) => (
+              <div key={t.id} className="flex items-center gap-4 p-4 bg-white/3 rounded-xl border border-white/8">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                  {t.name ? t.name.charAt(0) : 'T'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-white text-sm">{t.name || 'Independent Tutor'}</p>
+                  <p className="text-xs text-gray-400">{t.email} · {t.university || 'Global Educator'}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge color="blue">{t.qualifications || 'Language Verification Pending'}</Badge>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="success" size="sm" onClick={() => handleStatusUpdate(t.id, 'active')}>Approve</Button>
+                  <Button variant="danger" size="sm" onClick={() => handleStatusUpdate(t.id, 'rejected')}>Reject</Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="success" size="sm">Approve</Button>
-                <Button variant="danger" size="sm">Reject</Button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </GlassCard>
 
-      {/* Recent Transactions */}
-      <GlassCard className="p-6">
+      {/* Transactions Table */}
+      <GlassCard className="p-6 border-white/10">
         <h3 className="text-lg font-semibold text-white mb-5 flex items-center gap-2">
           <Activity size={18} className="text-blue-400" /> Recent Transactions
         </h3>
@@ -155,7 +190,7 @@ export default function AdminDashboard() {
                   <td className="py-3 pr-4 text-sm text-gray-300">{t.exam}</td>
                   <td className="py-3 pr-4 text-sm font-semibold text-white">LKR {t.amount.toLocaleString()}</td>
                   <td className="py-3 pr-4 text-xs text-gray-500">{t.date}</td>
-                  <td className="py-3">
+                  <td>
                     <Badge color={t.status === 'completed' ? 'green' : t.status === 'pending' ? 'yellow' : 'red'}>{t.status}</Badge>
                   </td>
                 </tr>
