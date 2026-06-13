@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Users, UserCheck, UserX, Mail, Shield, CheckCircle, X, UserPlus, Building, ShieldAlert } from 'lucide-react';
+import { Search, Users, UserCheck, UserX, Mail, Shield, CheckCircle, X, UserPlus, Building, ShieldAlert, Loader } from 'lucide-react';
 import GlassCard from '../../components/ui/GlassCard';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+
+// ✅ FIXED FIREBASE IMPORT PATH BASED ON frontend/src/firebaseConfig.js
+import { db } from "../../firebaseConfig";
+import { collection, doc, setDoc, getDocs, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 
 // Global Privileges Registry for Academic Validators & Staff Personnel
 const AVAILABLE_PRIVILEGES = [
@@ -13,29 +17,9 @@ const AVAILABLE_PRIVILEGES = [
   { key: 'view_analytics', label: 'View Academic Metrics', desc: 'Exposes student aggregate performance indices belonging to the native institute.' },
 ];
 
-// Initial Mock Data featuring Academic Validators & Admins
-const initialUsers = [
-  { id: 1, name: 'Kavindu Perera', email: 'kavindu@gmail.com', role: 'student', status: 'active', joined: '2024-01-15', activityCount: 24, institution: 'LNBTI' },
-  { id: 2, name: 'Hiroshi Tanaka', email: 'hiroshi@gmail.com', role: 'tutor', status: 'active', joined: '2023-11-02', activityCount: 8, institution: 'Tokyo Language Academy' },
-  { id: 3, name: 'Dilini Rajapaksa', email: 'dilini@gmail.com', role: 'student', status: 'active', joined: '2024-02-20', activityCount: 12, institution: 'LNBTI' },
-  { id: 4, name: 'Soo-Jin Lee', email: 'soojin@gmail.com', role: 'tutor', status: 'pending', joined: '2024-06-07', activityCount: 0, institution: 'Private' },
-  { id: 5, name: 'Tharaka Fernando', email: 'tharaka@gmail.com', role: 'student', status: 'suspended', joined: '2024-03-10', activityCount: 5, institution: 'LNBTI' },
-  { id: 6, name: 'Sarah Williams', email: 'sarah@gmail.com', role: 'tutor', status: 'active', joined: '2023-09-14', activityCount: 15, institution: 'British Council' },
-  { 
-    id: 7, 
-    name: 'Prof. Anura de Silva', 
-    email: 'anura.validator@lnbti.lk', 
-    role: 'validator', 
-    status: 'active', 
-    joined: '2025-02-10', 
-    activityCount: 42, 
-    institution: 'LNBTI',
-    privileges: ['verify_tutors', 'audit_exams'] 
-  }
-];
-
 export default function UserManagementPage() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true); 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -49,31 +33,105 @@ export default function UserManagementPage() {
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
-    role: 'validator', // Default to validator profile creation
+    role: 'validator', 
     institution: 'LNBTI',
     privileges: []
   });
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const toggleSuspend = (id) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === id) {
-        const targetStatus = u.status === 'suspended' ? 'active' : 'suspended';
-        return { ...u, status: targetStatus };
-      }
-      return u;
-    }));
+// 📥 FETCH USERS & PRE-AUTHORIZED STAFF FROM FIRESTORE
+  const fetchAllUsersAndPreAuth = async () => {
+    try {
+      setLoading(true);
+      
+    
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const registeredUsers = [];
+      usersSnapshot.forEach((doc) => {
+        registeredUsers.push({ id: doc.id, ...doc.data() });
+      });
+
+      // 2. Fetch pre-authorized staff who haven't registered yet
+      const preAuthSnapshot = await getDocs(collection(db, 'pre_authorized_staff'));
+      const preAuthUsers = [];
+      preAuthSnapshot.forEach((doc) => {
+        preAuthUsers.push({ 
+          id: doc.id, 
+          ...doc.data(),
+          status: 'invited', 
+          activityCount: 0
+        });
+      });
+
+      // 3. Combine both lists together
+      const combinedUsers = [...preAuthUsers, ...registeredUsers];
+
+      
+      combinedUsers.sort((a, b) => {
+        const dateA = a.joined ? new Date(a.joined) : new Date(0);
+        const dateB = b.joined ? new Date(b.joined) : new Date(0);
+        return dateB - dateA;
+      });
+
+      setUsers(combinedUsers);
+    } catch (error) {
+      console.error("Error fetching users from Firestore:", error);
+      alert("Failed to sync users layout.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRoleChange = (id, newRole) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === id) {
-        // Automatically attach structural default privileges if promoted to a validator node
-        const privileges = newRole === 'validator' ? ['verify_tutors'] : undefined;
-        return { ...u, role: newRole, privileges };
+  useEffect(() => {
+    fetchAllUsersAndPreAuth();
+  }, []);
+
+  // 🔒 TOGGLE SUSPEND / DELETE INVITATION
+  const toggleSuspend = async (uid, currentStatus, email) => {
+    try {
+      if (currentStatus === 'invited') {
+        
+        await deleteDoc(doc(db, 'pre_authorized_staff', email));
+        setUsers(prev => prev.filter(u => u.id !== uid));
+        alert("Staff invitation rescinded successfully.");
+        return;
       }
-      return u;
-    }));
+
+      
+      const targetStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { status: targetStatus });
+      setUsers(prev => prev.map(u => u.id === uid ? { ...u, status: targetStatus } : u));
+    } catch (error) {
+      console.error("Error updating user status:", error);
+    }
+  };
+
+  // 🔄 CHANGE USER ROLE IN FIRESTORE
+  const handleRoleChange = async (user, newRole) => {
+    try {
+      const updatedData = { role: newRole };
+      if (newRole === 'validator') {
+        updatedData.privileges = ['verify_tutors'];
+      } else if (newRole === 'student' || newRole === 'tutor') {
+        updatedData.privileges = [];
+      }
+
+      if (user.status === 'invited') {
+        
+        const preAuthRef = doc(db, 'pre_authorized_staff', user.email);
+        await updateDoc(preAuthRef, updatedData);
+      } else {
+        
+        const userRef = doc(db, 'users', user.id);
+        await updateDoc(userRef, updatedData);
+      }
+      
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updatedData } : u));
+    } catch (error) {
+      console.error("Error updating user role:", error);
+    }
   };
 
   // --- Manage Existing Privileges Logic ---
@@ -92,9 +150,22 @@ export default function UserManagementPage() {
     });
   };
 
-  const savePrivileges = () => {
-    setUsers(prev => prev.map(u => u.id === selectedUser.id ? selectedUser : u));
-    setIsPrivilegeModalOpen(false);
+  // 💾 SAVE PRIVILEGES TO FIRESTORE
+  const savePrivileges = async () => {
+    try {
+      if (selectedUser.status === 'invited') {
+        const preAuthRef = doc(db, 'pre_authorized_staff', selectedUser.email);
+        await updateDoc(preAuthRef, { privileges: selectedUser.privileges });
+      } else {
+        const userRef = doc(db, 'users', selectedUser.id);
+        await updateDoc(userRef, { privileges: selectedUser.privileges });
+      }
+      
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? selectedUser : u));
+      setIsPrivilegeModalOpen(false);
+    } catch (error) {
+      console.error("Error saving privileges:", error);
+    }
   };
 
   // --- Provisioning New User Logic ---
@@ -108,37 +179,64 @@ export default function UserManagementPage() {
     });
   };
 
-  const handleProvisionUser = (e) => {
+  // 📝 NEW STAFF PROVISIONING (PRE-AUTHORIZED STAFF PATTERN)
+  const handleProvisionUser = async (e) => {
     e.preventDefault();
     setFormError('');
+    setIsSubmitting(true);
 
-    // Structural Validation
-    if (!createForm.name.trim() || !createForm.email.trim()) {
+    const formattedEmail = createForm.email.toLowerCase().trim();
+
+    if (!createForm.name.trim() || !formattedEmail) {
       setFormError('Full Name and Official Email fields are mandatory.');
+      setIsSubmitting(false);
       return;
     }
 
-    const newUserNode = {
-      id: Date.now(), // Generate a unique identifier runtime token
-      name: createForm.name,
-      email: createForm.email.toLowerCase().trim(),
-      role: createForm.role,
-      status: 'active', // Immediate active access clearance to bypass router guards
-      joined: new Date().toISOString().split('T')[0],
-      activityCount: 0,
-      institution: createForm.role === 'admin' ? 'System Operations' : createForm.institution,
-      privileges: createForm.role === 'student' ? undefined : createForm.privileges
-    };
+    const emailExists = users.some(u => u.email === formattedEmail);
+    if (emailExists) {
+      setFormError('An account or invitation with this email already exists.');
+      setIsSubmitting(false);
+      return;
+    }
 
-    setUsers(prev => [newUserNode, ...prev]);
-    setIsCreateModalOpen(false);
-    
-    // Clear Form State
-    setCreateForm({ name: '', email: '', role: 'validator', institution: 'LNBTI', privileges: [] });
+    try {
+      const preAuthRef = doc(db, 'pre_authorized_staff', formattedEmail);
+
+      const newStaffNode = {
+        name: createForm.name,
+        email: formattedEmail,
+        role: createForm.role,
+        joined: new Date().toISOString().split('T')[0],
+        institution: createForm.role === 'admin' ? 'System Operations' : createForm.institution,
+        privileges: createForm.privileges
+      };
+
+      
+      await setDoc(preAuthRef, newStaffNode);
+
+      
+      const uiNode = { id: formattedEmail, ...newStaffNode, status: 'invited', activityCount: 0 };
+      setUsers(prev => [uiNode, ...prev]);
+      
+      setIsCreateModalOpen(false);
+      setCreateForm({ name: '', email: '', role: 'validator', institution: 'LNBTI', privileges: [] });
+      
+      alert(`Staff Node Pre-Authorized! Please instruct ${newStaffNode.name} to sign up using ${newStaffNode.email} to activate their account.`);
+    } catch (error) {
+      console.error("Error provisioning staff account:", error);
+      setFormError("Database connectivity failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filtered = users.filter(u => {
-    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase()) && !u.institution.toLowerCase().includes(search.toLowerCase())) return false;
+    const nameMatch = u.name?.toLowerCase().includes(search.toLowerCase());
+    const emailMatch = u.email?.toLowerCase().includes(search.toLowerCase());
+    const instMatch = u.institution?.toLowerCase().includes(search.toLowerCase());
+    
+    if (search && !nameMatch && !emailMatch && !instMatch) return false;
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
     if (statusFilter !== 'all' && u.status !== statusFilter) return false;
     return true;
@@ -159,7 +257,6 @@ export default function UserManagementPage() {
           <p className="text-gray-400">Manage platform users, modify roles, and govern granular administrative access controls</p>
         </motion.div>
         
-        {/* Provision Staff Action Button */}
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
           <Button 
             variant="primary" 
@@ -174,8 +271,8 @@ export default function UserManagementPage() {
       {/* Counters Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Platform Students', value: '18,920', icon: Users, color: 'text-blue-400' },
-          { label: 'Active Tutors & Staff', value: users.filter(u => u.role !== 'student').length, icon: UserCheck, color: 'text-emerald-400' },
+          { label: 'Platform Students', value: users.filter(u => u.role === 'student').length, icon: Users, color: 'text-blue-400' },
+          { label: 'Active Tutors & Staff', value: users.filter(u => u.role !== 'student' && u.status === 'active').length, icon: UserCheck, color: 'text-emerald-400' },
           { label: 'Suspended Accounts', value: users.filter(u => u.status === 'suspended').length, icon: UserX, color: 'text-red-400' },
         ].map((s, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
@@ -184,7 +281,7 @@ export default function UserManagementPage() {
                 <s.icon size={18} className={s.color} />
               </div>
               <div>
-                <div className="text-xl font-bold text-white">{s.value}</div>
+                <div className="text-xl font-bold text-white">{loading ? '...' : s.value}</div>
                 <div className="text-xs text-gray-400">{s.label}</div>
               </div>
             </GlassCard>
@@ -214,7 +311,7 @@ export default function UserManagementPage() {
             ))}
           </div>
           <div className="flex gap-2">
-            {['all', 'active', 'pending', 'suspended'].map(s => (
+            {['all', 'active', 'invited', 'pending', 'suspended'].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition-all ${statusFilter === s ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
                 {s}
@@ -223,94 +320,98 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        {/* Data Matrix Grid Table */}
+        {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10 text-left text-xs font-medium text-gray-500">
-                <th className="pb-3 pr-4">User Details & Institute</th>
-                <th className="pb-3 pr-4">System Role</th>
-                <th className="pb-3 pr-4">Status</th>
-                <th className="pb-3 pr-4">Joined</th>
-                <th className="pb-3 pr-4 text-center">Metrics Context</th>
-                <th className="pb-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {filtered.map(u => (
-                <tr key={u.id} className="hover:bg-white/3 transition-colors">
-                  <td className="py-4 pr-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {u.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white">{u.name}</p>
-                        <p className="text-[11px] text-gray-400 font-mono">{u.email}</p>
-                        <span className="text-[10px] text-indigo-400 font-semibold">{u.institution}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 pr-4 text-sm">
-                    <select
-                      value={u.role}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      className="bg-[#0f1629] text-xs border border-white/10 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="student">Student</option>
-                      <option value="tutor">Tutor</option>
-                      <option value="validator">Academic Validator</option>
-                      <option value="admin">System Admin</option>
-                    </select>
-                  </td>
-                  <td className="py-4 pr-4 text-sm">
-                    <Badge color={u.status === 'active' ? 'green' : u.status === 'pending' ? 'yellow' : 'red'}>
-                      {u.status}
-                    </Badge>
-                  </td>
-                  <td className="py-4 pr-4 text-xs text-gray-500">{u.joined}</td>
-                  <td className="py-4 pr-4 text-xs text-center font-mono text-gray-300">
-                    <span className="block font-bold">{u.activityCount}</span>
-                    <span className="text-[10px] text-gray-500 font-sans">{getActivityLabel(u.role)}</span>
-                  </td>
-                  <td className="py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {/* Governance Trigger Button */}
-                      {(u.role === 'validator' || u.role === 'admin') && (
-                        <Button 
-                          variant="secondary" 
-                          className="px-2.5 py-1.5 text-xs border border-blue-500/30 text-blue-300 flex items-center gap-1 bg-blue-500/5 hover:bg-blue-500/10"
-                          onClick={() => openPrivilegeModal(u)}
-                        >
-                          <Shield size={12} /> Governance
-                        </Button>
-                      )}
-                      
-                      <Button variant="ghost" size="sm" className="p-2 border border-white/10 hover:bg-white/5" title="Email User">
-                        <Mail size={13} className="text-gray-300" />
-                      </Button>
-                      <Button 
-                        variant={u.status === 'suspended' ? 'success' : 'danger'} 
-                        size="sm" 
-                        onClick={() => toggleSuspend(u.id)}
-                      >
-                        {u.status === 'suspended' ? 'Activate' : 'Suspend'}
-                      </Button>
-                    </div>
-                  </td>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400 text-sm">
+              <Loader className="animate-spin text-blue-500" size={24} />
+              <span>Synchronizing Core Infrastructure Registry...</span>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10 text-left text-xs font-medium text-gray-500">
+                  <th className="pb-3 pr-4">User Details & Institute</th>
+                  <th className="pb-3 pr-4">System Role</th>
+                  <th className="pb-3 pr-4">Status</th>
+                  <th className="pb-3 pr-4">Joined</th>
+                  <th className="pb-3 pr-4 text-center">Metrics Context</th>
+                  <th className="pb-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.map(u => (
+                  <tr key={u.id} className="hover:bg-white/3 transition-colors">
+                    <td className="py-4 pr-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {u.name ? u.name.charAt(0) : 'U'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{u.name}</p>
+                          <p className="text-[11px] text-gray-400 font-mono">{u.email}</p>
+                          <span className="text-[10px] text-indigo-400 font-semibold">{u.institution}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 pr-4 text-sm">
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u, e.target.value)}
+                        className="bg-gradient-to-b from-[#111827] to-[#0f172a] text-xs border border-white/10 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="student">Student</option>
+                        <option value="tutor">Tutor</option>
+                        <option value="validator">Academic Validator</option>
+                        <option value="admin">System Admin</option>
+                      </select>
+                    </td>
+                    <td className="py-4 pr-4 text-sm">
+                      <Badge color={u.status === 'active' ? 'green' : u.status === 'invited' ? 'indigo' : u.status === 'pending' ? 'yellow' : 'red'}>
+                        {u.status}
+                      </Badge>
+                    </td>
+                    <td className="py-4 pr-4 text-xs text-gray-500">{u.joined}</td>
+                    <td className="py-4 pr-4 text-xs text-center font-mono text-gray-300">
+                      <span className="block font-bold">{u.activityCount || 0}</span>
+                      <span className="text-[10px] text-gray-500 font-sans">{getActivityLabel(u.role)}</span>
+                    </td>
+                    <td className="py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {(u.role === 'validator' || u.role === 'admin') && (
+                          <Button 
+                            variant="secondary" 
+                            className="px-2.5 py-1.5 text-xs border border-blue-500/30 text-blue-300 flex items-center gap-1 bg-blue-500/5 hover:bg-blue-500/10"
+                            onClick={() => openPrivilegeModal(u)}
+                          >
+                            <Shield size={12} /> Governance
+                          </Button>
+                        )}
+                        
+                        <Button variant="ghost" size="sm" className="p-2 border border-white/10 hover:bg-white/5" title="Email User">
+                          <Mail size={13} className="text-gray-300" />
+                        </Button>
+                        <Button 
+                          variant={u.status === 'suspended' ? 'success' : 'danger'} 
+                          size="sm" 
+                          onClick={() => toggleSuspend(u.id, u.status, u.email)}
+                        >
+                          {u.status === 'suspended' ? 'Activate' : u.status === 'invited' ? 'Revoke' : 'Suspend'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!loading && filtered.length === 0 && (
             <p className="text-center text-gray-500 text-sm py-8">Zero entries matches current system lookup parameters.</p>
           )}
         </div>
       </GlassCard>
 
-      {/* ========================================================
-          OPTION 1: PROVISION NEW STAFF USER ACCOUNT MODAL DIALOG
-          ======================================================== */}
+      {/* --- Modal Dialogs (Create Staff Node) --- */}
       <AnimatePresence>
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -347,7 +448,7 @@ export default function UserManagementPage() {
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-gray-300">Official Corporate Email</label>
                     <input 
-                      type="email" required placeholder="e.g., samantha@lnbti.lk"
+                      type="email" required placeholder="e.g., samantha@lnbti.com"
                       value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500/50"
                     />
@@ -407,7 +508,9 @@ export default function UserManagementPage() {
 
                   <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
                     <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                    <Button type="submit" variant="success" size="sm" className="bg-emerald-600 hover:bg-emerald-500">Provision Authority</Button>
+                    <Button type="submit" variant="success" size="sm" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-500">
+                      {isSubmitting ? 'Provisioning...' : 'Provision Authority'}
+                    </Button>
                   </div>
                 </form>
               </GlassCard>
@@ -416,9 +519,7 @@ export default function UserManagementPage() {
         )}
       </AnimatePresence>
 
-      {/* ========================================================
-          OPTION 2: ACCESS GOVERNANCE FOR EXISTING PERSONNEL MODAL DIALOG
-          ======================================================== */}
+      {/* Privilege Access Governance Modal Dialog */}
       <AnimatePresence>
         {isPrivilegeModalOpen && selectedUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -442,7 +543,7 @@ export default function UserManagementPage() {
 
                 <div className="space-y-3 mb-6">
                   {AVAILABLE_PRIVILEGES.map((p) => {
-                    const isChecked = selectedUser.privileges.includes(p.key);
+                    const isChecked = selectedUser.privileges?.includes(p.key);
                     return (
                       <div 
                         key={p.key} onClick={() => handleToggleExistingPrivilege(p.key)}

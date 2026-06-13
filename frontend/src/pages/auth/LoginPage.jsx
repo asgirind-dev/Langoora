@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Chrome } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
@@ -8,7 +7,7 @@ import Input from '../../components/ui/Input';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth(); // 🔥 Destructured loginWithGoogle
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
@@ -23,6 +22,17 @@ export default function LoginPage() {
     return e;
   };
 
+  // Safe navigation handler tool shared across both entry paths
+  const handleRoleRedirection = (userObj) => {
+    if (userObj && userObj.role === 'admin') navigate('/admin');
+    else if (userObj && userObj.role === 'validator') navigate('/validator');
+    else if (userObj && userObj.role === 'tutor') {
+      if (userObj.status === 'pending') navigate('/auth/under-review');
+      else navigate('/tutor');
+    } 
+    else navigate('/student'); // Default student target
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
@@ -32,37 +42,29 @@ export default function LoginPage() {
     }
     
     setLoading(true);
-    setErrors({}); // Clear previous errors if any
+    setErrors({}); 
 
     try {
-      // 1. Trigger the Firebase Auth & Firestore verification login workflow
-      // This returns the profileData containing 'role', 'status', and 'privileges'
       const authenticatedUser = await login(form.email, form.password);
-
-      // 2. Evaluate routing criteria based on database profile roles and account lifecycle states
-      if (authenticatedUser && authenticatedUser.role === 'admin') {
-        navigate('/admin');
-      } 
-      else if (authenticatedUser && authenticatedUser.role === 'validator') {
-      
-        navigate('/validator');
-      } 
-      else if (authenticatedUser && authenticatedUser.role === 'tutor') {
-        if (authenticatedUser.status === 'pending') {
-          navigate('/auth/under-review');
-        } else {
-          navigate('/tutor');
-        }
-      } 
-      else {
-        // Fallback target for students or standard consumers
-        navigate('/student');
-      }
-
+      handleRoleRedirection(authenticatedUser);
     } catch (err) {
       console.error("Authentication submission rejected:", err);
-      // Display friendly error message if user password or email is incorrect
       setErrors({ server: err.message || "Failed to log in. Please check your credentials." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔥 NEW: Google Action Click Trigger Workflow
+  const handleGoogleClick = async () => {
+    setLoading(true);
+    setErrors({});
+    try {
+      const googleUser = await loginWithGoogle();
+      handleRoleRedirection(googleUser);
+    } catch (err) {
+      console.error("Google authentication action crashed:", err);
+      setErrors({ server: err.message || "Google registration interaction failed." });
     } finally {
       setLoading(false);
     }
@@ -121,7 +123,8 @@ export default function LoginPage() {
           <div className="relative flex justify-center"><span className="bg-[#060d1f] px-3 text-gray-500 text-sm">or continue with</span></div>
         </div>
 
-        <Button variant="secondary" size="lg" fullWidth type="button">
+        {/* 🔥 FIXED: Hooked onClick parameter interface dynamically */}
+        <Button variant="secondary" size="lg" fullWidth type="button" onClick={handleGoogleClick} disabled={loading}>
           <Chrome size={18} className="text-blue-400" /> Continue with Google
         </Button>
       </form>

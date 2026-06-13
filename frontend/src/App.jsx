@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'; 
 import { AuthProvider } from './context/AuthContext'; 
+import ProtectedRoute from './components/ProtectedRoute'; 
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
@@ -21,6 +22,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import UnderReviewPage from './pages/auth/UnderReviewPage';
+import CompleteProfile from './pages/auth/CompleteProfile';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -58,7 +60,7 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
-        {/* Public Routes */}
+        {/* Public Routes - Accessible to anyone */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/pricing" element={<PricingPage />} />
@@ -69,21 +71,41 @@ function App() {
           <Route path="/exam/:id/preview" element={<ExamPreviewPage />} />
         </Route>
 
-        {/* Auth Routes */}
+        {/* Auth Routes - Wrapped under standard authentication layouts */}
         <Route path="/auth" element={<AuthLayout />}>
           <Route index element={<Navigate to="login" replace />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="under-review" element={<UnderReviewPage />} />
+          
+          {/* Under Review node requires a wrapper because it expects an active authenticated session */}
+          <Route 
+            path="under-review" 
+            element={
+              <ProtectedRoute>
+                <UnderReviewPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route path="complete-profile" element={<CompleteProfile />} />
         </Route>
 
-        {/* Exam Interface */}
-        <Route path="/exam/:id/take" element={<ExamTakePage />} />
-        <Route path="/exam/:id/results" element={<ExamResultsPage />} />
+        {/* Secure Exam Interface - Requires student or consumer authentication */}
+        <Route 
+          path="/exam/:id/take" 
+          element={<ProtectedRoute allowedRoles={['student']}><ExamTakePage /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/exam/:id/results" 
+          element={<ProtectedRoute allowedRoles={['student']}><ExamResultsPage /></ProtectedRoute>} 
+        />
 
-        {/* Student Dashboard Routes */}
-        <Route path="/student" element={<StudentLayout />}>
+        {/* Student Dashboard Routes - Strictly for student role access node */}
+        <Route 
+          path="/student" 
+          element={<ProtectedRoute allowedRoles={['student']}><StudentLayout /></ProtectedRoute>}
+        >
           <Route index element={<StudentDashboard />} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="exams" element={<MyExamsPage />} />
@@ -93,8 +115,11 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
-        {/* Tutor Dashboard Routes */}
-        <Route path="/tutor" element={<TutorLayout />}>
+        {/* Tutor Dashboard Routes - Protected node strictly matching 'tutor' status */}
+        <Route 
+          path="/tutor" 
+          element={<ProtectedRoute allowedRoles={['tutor']}><TutorLayout /></ProtectedRoute>}
+        >
           <Route index element={<TutorDashboard />} />
           <Route path="exams" element={<TutorExamsPage />} />
           <Route path="create" element={<CreateExamPage />} />
@@ -104,8 +129,11 @@ function App() {
           <Route path="profile" element={<TutorProfilePage />} />
         </Route>
 
-        {/* Admin Dashboard Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        {/* Admin Dashboard Routes - Restricted structurally strictly to system administrators */}
+        <Route 
+          path="/admin" 
+          element={<ProtectedRoute allowedRoles={['admin']}><AdminLayout /></ProtectedRoute>}
+        >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagementPage />} />
           <Route path="exams" element={<AdminDashboard />} />
@@ -114,15 +142,18 @@ function App() {
           <Route path="security" element={<SystemSecurity />} /> 
         </Route>
 
-        {/* Academic Validator Dashboard Routes */}
-        <Route path="/validator" element={<ValidatorLayout />}>
+        {/* Academic Validator Dashboard Routes - Restricts node views to quality evaluation roles */}
+        <Route 
+          path="/validator" 
+          element={<ProtectedRoute allowedRoles={['validator']}><ValidatorLayout /></ProtectedRoute>}
+        >
           <Route index element={<AcademicValidatorDashboard />} />
           <Route path="tutor-verification" element={<TutorVerificationPage />} />
           <Route path="content-disputes" element={<ContentDisputePage />} />
           <Route path="quality-audits" element={<ExamQualityAuditsPage />} />
         </Route>
 
-        {/* Catch-all redirect */}
+        {/* Catch-all global fallback redirect layout */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
