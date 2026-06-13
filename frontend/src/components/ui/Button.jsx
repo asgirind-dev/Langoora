@@ -1,12 +1,17 @@
 import { motion } from 'framer-motion';
 
 const variants = {
-  primary: 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25',
-  secondary: 'bg-white/10 hover:bg-white/20 text-white border border-white/20',
-  ghost: 'hover:bg-white/10 text-gray-300 hover:text-white',
-  danger: 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white shadow-lg shadow-red-500/25',
-  success: 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg shadow-emerald-500/25',
-  outline: 'border border-blue-500/50 text-blue-400 hover:bg-blue-500/10',
+  primary: 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/15 dark:shadow-blue-500/25',
+
+  secondary: 'bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-800 dark:text-white border border-slate-200 dark:border-white/20',
+
+  ghost: 'hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white',
+
+  danger: 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white shadow-lg shadow-red-500/15 dark:shadow-red-500/25',
+
+  success: 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg shadow-emerald-500/15 dark:shadow-emerald-500/25',
+
+  outline: 'border border-blue-600/40 dark:border-blue-500/50 text-blue-600 dark:text-blue-400 hover:bg-blue-600/5 dark:hover:bg-blue-500/10',
 };
 
 const sizes = {
@@ -16,7 +21,16 @@ const sizes = {
   xl: 'px-8 py-4 text-lg',
 };
 
-export default function Button({ children, variant = 'primary', size = 'md', className = '', disabled = false, onClick, type = 'button', fullWidth = false }) {
+export default function Button({
+  children,
+  variant = 'primary',
+  size = 'md',
+  className = '',
+  disabled = false,
+  onClick,
+  type = 'button',
+  fullWidth = false,
+}) {
   return (
     <motion.button
       whileHover={{ scale: disabled ? 1 : 1.02 }}

@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Users, UserCheck, UserX, Mail, Shield, CheckCircle, X, UserPlus, Building, ShieldAlert, Loader } from 'lucide-react';
+import { Search, Users, UserCheck, UserX, Mail, Shield, CheckCircle, X, UserPlus, Building, ShieldAlert, Loader, Radio, Zap, Activity } from 'lucide-react';
+
+// --- UI COMPONENTS IMPORTS ---
 import GlassCard from '../../components/ui/GlassCard';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import ThemeToggle from '../../components/ui/ThemeToggle'; 
 
-// ✅ FIXED FIREBASE IMPORT PATH BASED ON frontend/src/firebaseConfig.js
+// --- THEME CONTEXT & FIREBASE CONTROLS ---
+import { useTheme } from '../../context/ThemeContext'; 
 import { db } from "../../firebaseConfig";
-import { collection, doc, setDoc, getDocs, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// Global Privileges Registry for Academic Validators & Staff Personnel
 const AVAILABLE_PRIVILEGES = [
   { key: 'verify_tutors', label: 'Verify Institutional Tutors', desc: 'Allows approving or rejecting newly registered tutors from partner academies.' },
   { key: 'audit_exams', label: 'Audit Exam Papers', desc: 'Grants control to inspect question matrix structures and verify content accuracy.' },
@@ -18,18 +21,17 @@ const AVAILABLE_PRIVILEGES = [
 ];
 
 export default function UserManagementPage() {
+  const { isDarkMode } = useTheme(); 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true); 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  // Modal Governance States
   const [selectedUser, setSelectedUser] = useState(null);
   const [isPrivilegeModalOpen, setIsPrivilegeModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Form State for Provisioning New Staff (Validator/Admin)
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -40,101 +42,63 @@ export default function UserManagementPage() {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-// 📥 FETCH USERS & PRE-AUTHORIZED STAFF FROM FIRESTORE
   const fetchAllUsersAndPreAuth = async () => {
     try {
       setLoading(true);
-      
-    
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const registeredUsers = [];
-      usersSnapshot.forEach((doc) => {
-        registeredUsers.push({ id: doc.id, ...doc.data() });
-      });
+      usersSnapshot.forEach((doc) => { registeredUsers.push({ id: doc.id, ...doc.data() }); });
 
-      // 2. Fetch pre-authorized staff who haven't registered yet
       const preAuthSnapshot = await getDocs(collection(db, 'pre_authorized_staff'));
       const preAuthUsers = [];
       preAuthSnapshot.forEach((doc) => {
-        preAuthUsers.push({ 
-          id: doc.id, 
-          ...doc.data(),
-          status: 'invited', 
-          activityCount: 0
-        });
+        preAuthUsers.push({ id: doc.id, ...doc.data(), status: 'invited', activityCount: 0 });
       });
 
-      // 3. Combine both lists together
       const combinedUsers = [...preAuthUsers, ...registeredUsers];
-
-      
       combinedUsers.sort((a, b) => {
         const dateA = a.joined ? new Date(a.joined) : new Date(0);
         const dateB = b.joined ? new Date(b.joined) : new Date(0);
         return dateB - dateA;
       });
-
       setUsers(combinedUsers);
     } catch (error) {
-      console.error("Error fetching users from Firestore:", error);
-      alert("Failed to sync users layout.");
+      console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchAllUsersAndPreAuth();
-  }, []);
+  useEffect(() => { fetchAllUsersAndPreAuth(); }, []);
 
-  // 🔒 TOGGLE SUSPEND / DELETE INVITATION
   const toggleSuspend = async (uid, currentStatus, email) => {
     try {
       if (currentStatus === 'invited') {
-        
         await deleteDoc(doc(db, 'pre_authorized_staff', email));
         setUsers(prev => prev.filter(u => u.id !== uid));
-        alert("Staff invitation rescinded successfully.");
         return;
       }
-
-      
       const targetStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { status: targetStatus });
+      await updateDoc(doc(db, 'users', uid), { status: targetStatus });
       setUsers(prev => prev.map(u => u.id === uid ? { ...u, status: targetStatus } : u));
-    } catch (error) {
-      console.error("Error updating user status:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
-  // 🔄 CHANGE USER ROLE IN FIRESTORE
   const handleRoleChange = async (user, newRole) => {
     try {
       const updatedData = { role: newRole };
-      if (newRole === 'validator') {
-        updatedData.privileges = ['verify_tutors'];
-      } else if (newRole === 'student' || newRole === 'tutor') {
-        updatedData.privileges = [];
-      }
+      if (newRole === 'validator') updatedData.privileges = ['verify_tutors'];
+      else if (newRole === 'student' || newRole === 'tutor') updatedData.privileges = [];
 
       if (user.status === 'invited') {
-        
-        const preAuthRef = doc(db, 'pre_authorized_staff', user.email);
-        await updateDoc(preAuthRef, updatedData);
+        await updateDoc(doc(db, 'pre_authorized_staff', user.email), updatedData);
       } else {
-        
-        const userRef = doc(db, 'users', user.id);
-        await updateDoc(userRef, updatedData);
+        await updateDoc(doc(db, 'users', user.id), updatedData);
       }
-      
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updatedData } : u));
-    } catch (error) {
-      console.error("Error updating user role:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
-  // --- Manage Existing Privileges Logic ---
   const openPrivilegeModal = (user) => {
     setSelectedUser({ ...user, privileges: user.privileges || [] });
     setIsPrivilegeModalOpen(true);
@@ -143,66 +107,47 @@ export default function UserManagementPage() {
   const handleToggleExistingPrivilege = (privilegeKey) => {
     setSelectedUser(prev => {
       const exists = prev.privileges.includes(privilegeKey);
-      const updated = exists 
-        ? prev.privileges.filter(p => p !== privilegeKey)
-        : [...prev.privileges, privilegeKey];
-      return { ...prev, privileges: updated };
+      return { ...prev, privileges: exists ? prev.privileges.filter(p => p !== privilegeKey) : [...prev.privileges, privilegeKey] };
     });
   };
 
-  // 💾 SAVE PRIVILEGES TO FIRESTORE
   const savePrivileges = async () => {
     try {
       if (selectedUser.status === 'invited') {
-        const preAuthRef = doc(db, 'pre_authorized_staff', selectedUser.email);
-        await updateDoc(preAuthRef, { privileges: selectedUser.privileges });
+        await updateDoc(doc(db, 'pre_authorized_staff', selectedUser.email), { privileges: selectedUser.privileges });
       } else {
-        const userRef = doc(db, 'users', selectedUser.id);
-        await updateDoc(userRef, { privileges: selectedUser.privileges });
+        await updateDoc(doc(db, 'users', selectedUser.id), { privileges: selectedUser.privileges });
       }
-      
       setUsers(prev => prev.map(u => u.id === selectedUser.id ? selectedUser : u));
       setIsPrivilegeModalOpen(false);
-    } catch (error) {
-      console.error("Error saving privileges:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
-  // --- Provisioning New User Logic ---
   const handleToggleFormPrivilege = (privilegeKey) => {
     setCreateForm(prev => {
       const exists = prev.privileges.includes(privilegeKey);
-      const updated = exists
-        ? prev.privileges.filter(p => p !== privilegeKey)
-        : [...prev.privileges, privilegeKey];
-      return { ...prev, privileges: updated };
+      return { ...prev, privileges: exists ? prev.privileges.filter(p => p !== privilegeKey) : [...prev.privileges, privilegeKey] };
     });
   };
 
-  // 📝 NEW STAFF PROVISIONING (PRE-AUTHORIZED STAFF PATTERN)
   const handleProvisionUser = async (e) => {
     e.preventDefault();
     setFormError('');
     setIsSubmitting(true);
-
     const formattedEmail = createForm.email.toLowerCase().trim();
 
     if (!createForm.name.trim() || !formattedEmail) {
-      setFormError('Full Name and Official Email fields are mandatory.');
+      setFormError('Fields are mandatory.');
       setIsSubmitting(false);
       return;
     }
-
-    const emailExists = users.some(u => u.email === formattedEmail);
-    if (emailExists) {
-      setFormError('An account or invitation with this email already exists.');
+    if (users.some(u => u.email === formattedEmail)) {
+      setFormError('Email already exists.');
       setIsSubmitting(false);
       return;
     }
 
     try {
-      const preAuthRef = doc(db, 'pre_authorized_staff', formattedEmail);
-
       const newStaffNode = {
         name: createForm.name,
         email: formattedEmail,
@@ -211,154 +156,155 @@ export default function UserManagementPage() {
         institution: createForm.role === 'admin' ? 'System Operations' : createForm.institution,
         privileges: createForm.privileges
       };
-
-      
-      await setDoc(preAuthRef, newStaffNode);
-
-      
-      const uiNode = { id: formattedEmail, ...newStaffNode, status: 'invited', activityCount: 0 };
-      setUsers(prev => [uiNode, ...prev]);
-      
+      await setDoc(doc(db, 'pre_authorized_staff', formattedEmail), newStaffNode);
+      setUsers(prev => [{ id: formattedEmail, ...newStaffNode, status: 'invited', activityCount: 0 }, ...prev]);
       setIsCreateModalOpen(false);
       setCreateForm({ name: '', email: '', role: 'validator', institution: 'LNBTI', privileges: [] });
-      
-      alert(`Staff Node Pre-Authorized! Please instruct ${newStaffNode.name} to sign up using ${newStaffNode.email} to activate their account.`);
     } catch (error) {
-      console.error("Error provisioning staff account:", error);
-      setFormError("Database connectivity failed. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+      setFormError("Database connectivity failed.");
+    } finally { setIsSubmitting(false); }
   };
 
   const filtered = users.filter(u => {
-    const nameMatch = u.name?.toLowerCase().includes(search.toLowerCase());
-    const emailMatch = u.email?.toLowerCase().includes(search.toLowerCase());
-    const instMatch = u.institution?.toLowerCase().includes(search.toLowerCase());
-    
-    if (search && !nameMatch && !emailMatch && !instMatch) return false;
+    if (search && !u.name?.toLowerCase().includes(search.toLowerCase()) && !u.email?.toLowerCase().includes(search.toLowerCase()) && !u.institution?.toLowerCase().includes(search.toLowerCase())) return false;
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
     if (statusFilter !== 'all' && u.status !== statusFilter) return false;
     return true;
   });
 
-  const getActivityLabel = (role) => {
-    if (role === 'tutor') return 'Exams Authored';
-    if (role === 'validator') return 'Quality Audits';
-    if (role === 'admin') return 'System Changes';
-    return 'Exams Bought';
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold text-white mb-1">User Management</h1>
-          <p className="text-gray-400">Manage platform users, modify roles, and govern granular administrative access controls</p>
+    <div className="space-y-6 p-1 selection:bg-cyan-500/30">
+      
+      {/* --- HEADER SECTION WITH DYNAMIC THEME TOGGLE --- */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative">
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-mono tracking-widest uppercase px-2 py-0.5 bg-cyan-500/10 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30 dark:border-cyan-500/20 rounded font-semibold">Identity & Access Management</span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-slate-700 to-slate-600 dark:from-white dark:via-slate-200 dark:to-slate-400 tracking-tight">
+            User Gateways
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Govern dynamic organizational staff provisions, scale functional privileges, and audit active network nodes.
+          </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-3 select-none">
+          <ThemeToggle /> 
+          
           <Button 
             variant="primary" 
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-500/10 text-xs py-2.5"
+            className="group relative flex items-center gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-cyan-500/20 dark:shadow-cyan-500/10 text-xs font-semibold tracking-wide py-2.5 px-4 rounded-xl transition-all duration-300 text-white"
           >
-            <UserPlus size={15} /> Provision Staff Account
+            <UserPlus size={14} className="group-hover:rotate-12 transition-transform" /> 
+            <span>PROVISION NEW NODE</span>
           </Button>
         </motion.div>
       </div>
 
-      {/* Counters Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* --- METRICS COUNTERS GRID --- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { label: 'Platform Students', value: users.filter(u => u.role === 'student').length, icon: Users, color: 'text-blue-400' },
-          { label: 'Active Tutors & Staff', value: users.filter(u => u.role !== 'student' && u.status === 'active').length, icon: UserCheck, color: 'text-emerald-400' },
-          { label: 'Suspended Accounts', value: users.filter(u => u.status === 'suspended').length, icon: UserX, color: 'text-red-400' },
+          { label: 'Platform Active Students', value: users.filter(u => u.role === 'student').length, icon: Users, color: 'text-cyan-600 dark:text-cyan-400', glow: 'shadow-md shadow-slate-200/50 border-slate-200/80 dark:border-cyan-500/10' },
+          { label: 'Verified Tutors & Staff', value: users.filter(u => u.role !== 'student' && u.status === 'active').length, icon: UserCheck, color: 'text-indigo-600 dark:text-indigo-400', glow: 'shadow-md shadow-slate-200/50 border-slate-200/80 dark:border-indigo-500/10' },
+          { label: 'Suspended Terminals', value: users.filter(u => u.status === 'suspended').length, icon: UserX, color: 'text-rose-600 dark:text-rose-500', glow: 'shadow-md shadow-slate-200/50 border-slate-200/80 dark:border-rose-500/10' },
         ].map((s, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <GlassCard className="p-4 flex items-center gap-4 border-white/10">
-              <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">
+          <motion.div key={i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+            <GlassCard className={`p-4 flex items-center gap-4 border bg-white dark:bg-slate-900/30 backdrop-blur-md transition-all duration-300 hover:bg-slate-50/50 dark:hover:bg-white/[0.03] ${s.glow}`}>
+              <div className="w-11 h-11 bg-slate-100 dark:bg-slate-900/60 rounded-xl flex items-center justify-center border border-slate-200/60 dark:border-white/5 shadow-inner">
                 <s.icon size={18} className={s.color} />
               </div>
               <div>
-                <div className="text-xl font-bold text-white">{loading ? '...' : s.value}</div>
-                <div className="text-xs text-gray-400">{s.label}</div>
+                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{loading ? '...' : s.value}</div>
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{s.label}</div>
               </div>
             </GlassCard>
           </motion.div>
         ))}
       </div>
 
-      {/* Filter Options */}
-      <GlassCard className="p-6 border-white/10">
-        <div className="flex flex-wrap gap-3 mb-5">
-          <div className="flex-1 min-w-48">
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* --- HUB CONTROLS & FILTER SYSTEM --- */}
+      <GlassCard className="p-5 bg-white dark:bg-slate-950/20 border border-slate-200/90 dark:border-white/10 shadow-xl shadow-slate-200/60 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-32 h-[1px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-40" />
+        
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="w-full">
+            <div className="relative group">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-600 dark:group-focus-within:text-cyan-500 transition-colors" />
               <input
-                type="text" placeholder="Search by name, email or partner institute (e.g., LNBTI)..."
+                type="text" 
+                placeholder="Query nodes by signature, corporate email, or institutional affiliation..."
                 value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pl-9 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                className="w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 pl-9 text-slate-800 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500/60 focus:bg-white dark:focus:bg-slate-900/80 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono shadow-inner"
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            {['all', 'student', 'tutor', 'validator', 'admin'].map(r => (
-              <button key={r} onClick={() => setRoleFilter(r)}
-                className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition-all ${roleFilter === r ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
-                {r === 'validator' ? 'Validator' : r}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            {['all', 'active', 'invited', 'pending', 'suspended'].map(s => (
-              <button key={s} onClick={() => setStatusFilter(s)}
-                className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition-all ${statusFilter === s ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
-                {s}
-              </button>
-            ))}
+          
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-white/5">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-500 uppercase mr-1 flex items-center gap-1 font-bold"><Activity size={10}/> Role Node:</span>
+              {['all', 'student', 'tutor', 'validator', 'admin'].map(r => (
+                <button key={r} onClick={() => setRoleFilter(r)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-mono capitalize transition-all duration-200 ${roleFilter === r ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/40 dark:border-cyan-500/30 font-bold' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-transparent hover:border-slate-300 dark:hover:border-white/5 hover:bg-slate-200/50'}`}>
+                  {r === 'validator' ? 'Academic Validator' : r}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-500 uppercase mr-1 flex items-center gap-1 font-bold"><Radio size={10}/> Lifecycle:</span>
+              {['all', 'active', 'invited', 'pending', 'suspended'].map(s => (
+                <button key={s} onClick={() => setStatusFilter(s)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-mono capitalize transition-all duration-200 ${statusFilter === s ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/40 dark:border-indigo-500/30 font-bold' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-transparent hover:border-slate-300 dark:hover:border-white/5 hover:bg-slate-200/50'}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="overflow-x-auto">
+        {/* --- MAIN REGISTRY TABLE --- */}
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900/10 shadow-sm">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400 text-sm">
-              <Loader className="animate-spin text-blue-500" size={24} />
-              <span>Synchronizing Core Infrastructure Registry...</span>
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500 font-mono text-xs">
+              <Loader className="animate-spin text-cyan-500" size={20} />
+              <span className="tracking-widest animate-pulse">SYNCHRONIZING CENTRAL STORAGE REGISTRY...</span>
             </div>
           ) : (
-            <table className="w-full">
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-white/10 text-left text-xs font-medium text-gray-500">
-                  <th className="pb-3 pr-4">User Details & Institute</th>
-                  <th className="pb-3 pr-4">System Role</th>
-                  <th className="pb-3 pr-4">Status</th>
-                  <th className="pb-3 pr-4">Joined</th>
-                  <th className="pb-3 pr-4 text-center">Metrics Context</th>
-                  <th className="pb-3 text-right">Actions</th>
+                <tr className="border-b border-slate-200 dark:border-white/5 bg-slate-100/80 dark:bg-white/[0.01] text-left text-[10px] font-mono tracking-wider text-slate-600 dark:text-slate-400 uppercase select-none">
+                  <th className="p-4 font-bold">Personnel Information</th>
+                  <th className="p-4 font-bold">Routing Authority</th>
+                  <th className="p-4 font-bold">Operational Lifecycle</th>
+                  <th className="p-4 font-bold">Timestamp</th>
+                  <th className="p-4 text-center font-bold">Metrics Index</th>
+                  <th className="p-4 text-right font-bold">Access Governance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-slate-200/70 dark:divide-white/5">
                 {filtered.map(u => (
-                  <tr key={u.id} className="hover:bg-white/3 transition-colors">
-                    <td className="py-4 pr-4">
+                  <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.01] transition-colors group">
+                    <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {u.name ? u.name.charAt(0) : 'U'}
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-gradient-to-br dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-white/10 flex items-center justify-center text-cyan-700 dark:text-cyan-400 text-xs font-black shadow-sm group-hover:border-cyan-500/50 transition-colors">
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-white">{u.name}</p>
-                          <p className="text-[11px] text-gray-400 font-mono">{u.email}</p>
-                          <span className="text-[10px] text-indigo-400 font-semibold">{u.institution}</span>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white tracking-wide group-hover:text-cyan-700 dark:group-hover:text-cyan-400 transition-colors">{u.name || 'Anonymous Node'}</p>
+                          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono mt-0.5 font-medium">{u.email}</p>
+                          <div className="inline-block mt-1 px-1.5 py-0.5 bg-blue-50 dark:bg-indigo-500/5 border border-blue-200 dark:border-indigo-500/10 rounded text-[9px] font-mono font-bold text-blue-700 dark:text-indigo-300">
+                            {u.institution || 'Independent Affiliate'}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 pr-4 text-sm">
+
+                    <td className="p-4">
                       <select
-                        value={u.role}
-                        onChange={(e) => handleRoleChange(u, e.target.value)}
-                        className="bg-gradient-to-b from-[#111827] to-[#0f172a] text-xs border border-white/10 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-blue-500"
+                        value={u.role} onChange={(e) => handleRoleChange(u, e.target.value)}
+                        className="bg-white dark:bg-slate-950 text-[11px] font-mono border border-slate-300 dark:border-white/5 rounded-lg px-2 py-1 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-cyan-500/60 shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900"
                       >
                         <option value="student">Student</option>
                         <option value="tutor">Tutor</option>
@@ -366,37 +312,48 @@ export default function UserManagementPage() {
                         <option value="admin">System Admin</option>
                       </select>
                     </td>
-                    <td className="py-4 pr-4 text-sm">
-                      <Badge color={u.status === 'active' ? 'green' : u.status === 'invited' ? 'indigo' : u.status === 'pending' ? 'yellow' : 'red'}>
-                        {u.status}
-                      </Badge>
+
+                    <td className="p-4">
+                      {u.status === 'active' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/10">ACTIVE</span>
+                      ) : u.status === 'invited' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/10">INVITED</span>
+                      ) : u.status === 'pending' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/10">PENDING</span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/10">SUSPENDED</span>
+                      )}
                     </td>
-                    <td className="py-4 pr-4 text-xs text-gray-500">{u.joined}</td>
-                    <td className="py-4 pr-4 text-xs text-center font-mono text-gray-300">
-                      <span className="block font-bold">{u.activityCount || 0}</span>
-                      <span className="text-[10px] text-gray-500 font-sans">{getActivityLabel(u.role)}</span>
+
+                    <td className="p-4 text-[11px] font-mono text-slate-600 dark:text-slate-400 font-medium">{u.joined || '---'}</td>
+
+                    <td className="p-4 text-center font-mono">
+                      <span className="block text-xs font-black text-slate-900 dark:text-slate-200">{u.activityCount || 0}</span>
+                      <span className="text-[8px] tracking-wide text-slate-500 dark:text-slate-500 uppercase font-bold">
+                        {u.role === 'tutor' ? 'Exams Authored' : u.role === 'validator' ? 'Quality Audits' : u.role === 'admin' ? 'System Changes' : 'Exams Purchased'}
+                      </span>
                     </td>
-                    <td className="py-4 text-right">
+
+                    <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
                         {(u.role === 'validator' || u.role === 'admin') && (
                           <Button 
                             variant="secondary" 
-                            className="px-2.5 py-1.5 text-xs border border-blue-500/30 text-blue-300 flex items-center gap-1 bg-blue-500/5 hover:bg-blue-500/10"
+                            className="px-2.5 py-1.5 text-[10px] font-mono border border-cyan-500/30 text-cyan-700 dark:text-cyan-400 flex items-center gap-1 bg-cyan-500/5 hover:bg-cyan-500/10 rounded-lg transition-all font-bold"
                             onClick={() => openPrivilegeModal(u)}
                           >
-                            <Shield size={12} /> Governance
+                            <Shield size={11} /> GOVERN
                           </Button>
                         )}
-                        
-                        <Button variant="ghost" size="sm" className="p-2 border border-white/10 hover:bg-white/5" title="Email User">
-                          <Mail size={13} className="text-gray-300" />
+                        <Button variant="ghost" size="sm" className="p-2 border border-slate-200 dark:border-white/5 bg-white dark:bg-transparent hover:bg-slate-100 dark:hover:bg-slate-900 rounded-lg shadow-sm dark:shadow-none">
+                          <Mail size={12} className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors" />
                         </Button>
                         <Button 
                           variant={u.status === 'suspended' ? 'success' : 'danger'} 
-                          size="sm" 
+                          size="sm" className="text-[10px] font-mono py-1.5 rounded-lg text-white font-bold"
                           onClick={() => toggleSuspend(u.id, u.status, u.email)}
                         >
-                          {u.status === 'suspended' ? 'Activate' : u.status === 'invited' ? 'Revoke' : 'Suspend'}
+                          {u.status === 'suspended' ? 'ACTIVATE' : u.status === 'invited' ? 'REVOKE' : 'SUSPEND'}
                         </Button>
                       </div>
                     </td>
@@ -405,61 +362,57 @@ export default function UserManagementPage() {
               </tbody>
             </table>
           )}
-          {!loading && filtered.length === 0 && (
-            <p className="text-center text-gray-500 text-sm py-8">Zero entries matches current system lookup parameters.</p>
-          )}
         </div>
       </GlassCard>
 
-      {/* --- Modal Dialogs (Create Staff Node) --- */}
+      {/* --- MODAL DIALOGS: CREATE INTERNAL STAFF NODE --- */}
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}>
-              <GlassCard className="w-full max-w-lg p-6 border-white/20 bg-[#0a101f] shadow-2xl overflow-y-auto max-h-[90vh]">
-                <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/70 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.97, opacity: 0 }}>
+              <GlassCard className="w-full max-w-lg p-6 bg-white dark:bg-[#070c19] border border-slate-300 dark:border-white/10 shadow-2xl relative">
+                <div className="flex justify-between items-center mb-5 border-b border-slate-200 dark:border-white/5 pb-4">
                   <div>
-                    <h3 className="text-md font-bold text-white flex items-center gap-2">
-                      <UserPlus className="text-blue-400" size={18} /> Provision Institutional Staff Node
+                    <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-white flex items-center gap-2 uppercase">
+                      <UserPlus className="text-cyan-600 dark:text-cyan-500" size={16} /> Provision Institutional Staff Node
                     </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Initialize authentic internal staff identities into the system repository.</p>
                   </div>
-                  <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-white">
-                    <X size={18} />
+                  <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5">
+                    <X size={16} />
                   </button>
                 </div>
 
-                <form onSubmit={handleProvisionUser} className="space-y-4">
+                <form onSubmit={handleProvisionUser} className="space-y-4 font-sans">
                   {formError && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl flex items-center gap-1.5">
+                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-mono p-3 rounded-xl flex items-center gap-2">
                       <ShieldAlert size={14} /> {formError}
                     </div>
                   )}
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-300">Staff Full Name</label>
+                    <label className="text-[11px] font-mono text-slate-600 dark:text-slate-400 uppercase font-bold">Staff Full Name</label>
                     <input 
-                      type="text" required placeholder="e.g., Dr. Samantha Silva"
+                      type="text" required placeholder="e.g., Dr. Alan Turing"
                       value={createForm.name} onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-white/5 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500/60 font-mono shadow-inner"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-300">Official Corporate Email</label>
+                    <label className="text-[11px] font-mono text-slate-600 dark:text-slate-400 uppercase font-bold">Official Corporate Email</label>
                     <input 
-                      type="email" required placeholder="e.g., samantha@lnbti.com"
+                      type="email" required placeholder="e.g., alandev@lnbti.com"
                       value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-white/5 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500/60 font-mono shadow-inner"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-300">Administrative Role</label>
+                      <label className="text-[11px] font-mono text-slate-600 dark:text-slate-400 uppercase font-bold">System Gateway Role</label>
                       <select
                         value={createForm.role} onChange={e => setCreateForm(p => ({ ...p, role: e.target.value, privileges: [] }))}
-                        className="w-full bg-[#0f1629] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-white/5 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 text-xs focus:outline-none font-mono cursor-pointer shadow-sm"
                       >
                         <option value="validator">Academic Validator</option>
                         <option value="admin">System Admin</option>
@@ -467,38 +420,37 @@ export default function UserManagementPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-300">Affiliated Institution</label>
+                      <label className="text-[11px] font-mono text-slate-600 dark:text-slate-400 uppercase font-bold">Affiliated Institution</label>
                       <div className="relative">
-                        <Building size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                        <Building size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
                           type="text" disabled={createForm.role === 'admin'}
                           value={createForm.role === 'admin' ? 'Internal Operations' : createForm.institution}
                           onChange={e => setCreateForm(p => ({ ...p, institution: e.target.value }))}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 pl-9 text-white text-sm focus:outline-none focus:border-blue-500/50 disabled:opacity-50"
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-white/5 rounded-xl px-3 py-2 pl-8 text-slate-800 dark:text-slate-200 text-xs focus:outline-none disabled:opacity-50 font-mono shadow-inner"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Privilege Authorization Section */}
-                  <div className="space-y-2 pt-2 border-t border-white/10">
-                    <label className="text-xs font-bold text-gray-300 block">Grant Functional Operations Permissions</label>
-                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                  <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-white/5">
+                    <label className="text-[11px] font-mono text-slate-700 dark:text-slate-300 uppercase block flex items-center gap-1 font-bold"><Zap size={11} className="text-cyan-600 dark:text-cyan-500"/> Inject Functional Permissions Matrix</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {AVAILABLE_PRIVILEGES.map((p) => {
                         const isChecked = createForm.privileges.includes(p.key);
                         return (
                           <div 
                             key={p.key} onClick={() => handleToggleFormPrivilege(p.key)}
-                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
-                              isChecked ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5 border-white/5 hover:border-white/10'
+                            className={`p-2.5 rounded-xl border transition-all duration-200 cursor-pointer flex items-start gap-3 select-none ${
+                              isChecked ? 'bg-cyan-500/[0.04] dark:bg-cyan-500/[0.06] border-cyan-500/50 dark:border-cyan-500/30' : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
                             }`}
                           >
-                            <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isChecked ? 'bg-blue-500 border-blue-500' : 'border-gray-500'}`}>
-                              {isChecked && <CheckCircle size={12} className="text-white" />}
+                            <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isChecked ? 'bg-cyan-500 border-cyan-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                              {isChecked && <CheckCircle size={10} className="text-white dark:text-slate-950" />}
                             </div>
                             <div>
-                              <div className={`text-xs font-semibold ${isChecked ? 'text-blue-300' : 'text-gray-200'}`}>{p.label}</div>
-                              <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{p.desc}</div>
+                              <div className={`text-[11px] font-mono font-bold ${isChecked ? 'text-cyan-700 dark:text-cyan-400' : 'text-slate-800 dark:text-slate-200'}`}>{p.label}</div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal mt-0.5 font-sans font-medium">{p.desc}</div>
                             </div>
                           </div>
                         );
@@ -506,10 +458,10 @@ export default function UserManagementPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                    <Button type="submit" variant="success" size="sm" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-500">
-                      {isSubmitting ? 'Provisioning...' : 'Provision Authority'}
+                  <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-white/5">
+                    <Button type="button" variant="ghost" size="sm" className="font-mono text-[10px] border border-slate-200" onClick={() => setIsCreateModalOpen(false)}>ABORT</Button>
+                    <Button type="submit" variant="success" size="sm" disabled={isSubmitting} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-mono text-[10px] tracking-widest px-4">
+                      {isSubmitting ? 'PROVISIONING...' : 'INITIALIZE NODE'}
                     </Button>
                   </div>
                 </form>
@@ -519,53 +471,49 @@ export default function UserManagementPage() {
         )}
       </AnimatePresence>
 
-      {/* Privilege Access Governance Modal Dialog */}
+      {/* --- PRIVILEGE ACCESS GOVERNANCE MODAL --- */}
       <AnimatePresence>
         {isPrivilegeModalOpen && selectedUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}>
-              <GlassCard className="w-full max-w-md p-6 border-white/20 bg-[#0a101f] shadow-2xl">
-                <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/70 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.97, opacity: 0 }}>
+              <GlassCard className="w-full max-w-md p-6 bg-white dark:bg-[#070c19] border border-slate-300 dark:border-white/10 shadow-2xl relative">
+                <div className="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-white/5 pb-4">
                   <div>
-                    <h3 className="text-md font-bold text-white flex items-center gap-2">
-                      <Shield className="text-indigo-400" size={18} /> Personnel Access Governance
+                    <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-white flex items-center gap-2 uppercase">
+                      <Shield className="text-indigo-600 dark:text-indigo-500" size={16} /> Node Capability Rules
                     </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">{selectedUser.name} • {selectedUser.institution}</p>
+                    <p className="text-[10px] font-mono text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-wider font-bold">{selectedUser.name || 'Staff User'} • {selectedUser.institution}</p>
                   </div>
-                  <button onClick={() => setIsPrivilegeModalOpen(false)} className="text-gray-400 hover:text-white">
-                    <X size={18} />
+                  <button onClick={() => setIsPrivilegeModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5">
+                    <X size={16} />
                   </button>
                 </div>
 
-                <p className="text-xs text-gray-400 mb-4">
-                  Modify dynamic infrastructure capabilities permitted for this active staff node lifecycle.
-                </p>
-
-                <div className="space-y-3 mb-6">
+                <div className="space-y-2.5 mb-5 max-h-60 overflow-y-auto pr-1">
                   {AVAILABLE_PRIVILEGES.map((p) => {
                     const isChecked = selectedUser.privileges?.includes(p.key);
                     return (
                       <div 
                         key={p.key} onClick={() => handleToggleExistingPrivilege(p.key)}
-                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
-                          isChecked ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5 hover:border-white/10'
+                        className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-start gap-3 select-none ${
+                          isChecked ? 'bg-indigo-500/[0.04] dark:bg-indigo-500/[0.06] border-indigo-500/50 dark:border-indigo-500/30' : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
                         }`}
                       >
-                        <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isChecked ? 'bg-indigo-500 border-indigo-500' : 'border-gray-500'}`}>
-                          {isChecked && <CheckCircle size={12} className="text-white" />}
+                        <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isChecked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                          {isChecked && <CheckCircle size={10} className="text-white dark:text-slate-950" />}
                         </div>
                         <div>
-                          <div className={`text-xs font-semibold ${isChecked ? 'text-indigo-300' : 'text-gray-200'}`}>{p.label}</div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">{p.desc}</div>
+                          <div className={`text-[11px] font-mono font-bold ${isChecked ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-200'}`}>{p.label}</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal font-sans font-medium">{p.desc}</div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="ghost" size="sm" onClick={() => setIsPrivilegeModalOpen(false)}>Cancel</Button>
-                  <Button variant="success" size="sm" onClick={savePrivileges}>Save Configuration</Button>
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-white/5">
+                  <Button variant="ghost" size="sm" className="font-mono text-[10px] border border-slate-200" onClick={() => setIsPrivilegeModalOpen(false)}>CLOSE</Button>
+                  <Button variant="success" size="sm" className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-mono text-[10px] tracking-wider px-4 font-bold" onClick={savePrivileges}>COMMIT CONFIG</Button>
                 </div>
               </GlassCard>
             </motion.div>

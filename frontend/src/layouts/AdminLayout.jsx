@@ -13,7 +13,9 @@ const navItems = [
 
 export default function AdminLayout() {
   return (
-    <div className="min-h-screen bg-[#060d1f] text-white flex">
+    
+    <div className="min-h-screen bg-slate-50 dark:bg-[#060d1f] text-slate-900 dark:text-white flex transition-colors duration-200">
+      
       {/* Dynamic sidebar passing the base and inner navigation items */}
       <DashboardSidebar navItems={navItems} basePath="/admin" />
       
