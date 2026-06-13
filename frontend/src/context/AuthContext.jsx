@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { 
   signInWithEmailAndPassword,
-  signInWithPopup,          // 🔥 Added for Google Popup
-  GoogleAuthProvider,       // 🔥 Added for Google Auth
+  signInWithPopup,          
+  GoogleAuthProvider,       
   signOut as firebaseSignOut 
 } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); 
 
   // ==========================================
-  // 🚀 1. REGISTER WORKFLOW (Straight to Backend)
+  // 🚀 1. REGISTER WORKFLOW (No Auto-Login)
   // ==========================================
   const register = async (email, password, userData, userRole) => {
     try {
@@ -37,14 +37,9 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Registration processing failed on the backend.');
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      setUser(data.user);
-      setRole(data.user.role);
-      setPrivileges(data.user.privileges || []);
-      
-      return data.user;
+      // 🌟 FIXED: Auto-login disabled for normal form registration. 
+      // User must redirect to login screen manually.
+      return data; 
     } catch (error) {
       console.error("Auth Engine Registration Failure:", error);
       throw error;
@@ -94,17 +89,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🌐 3. NEW: GOOGLE SIGN-IN WORKFLOW 
+  // 🌐 3. NEW: GOOGLE SIGN-IN & UPGRADE WORKFLOW 
   // ==========================================
   const loginWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      // 1. Trigger Firebase Popup selection panel
       const result = await signInWithPopup(auth, provider);
-      // 2. Extract the safe authentication identity token
       const idToken = await result.user.getIdToken();
 
-      // 3. Dispatch security payload straight to backend route instance
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +109,12 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Google Auth verification failed on backend');
       }
 
-      // 4. Save session metadata attributes
+      // 🌟 FIXED: Check if the backend says profile is incomplete
+      if (data.status === 'profile_incomplete') {
+        return data; // Return the metadata containing uid, email, name to handle redirection
+      }
+
+      // If user profile is already fully setup, commit to active session state
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -173,9 +170,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkPersistedAuthSession();
-  }, []);
+  }, [loading]);
 
-  // 🔥 Added loginWithGoogle into context values map
   return (
     <AuthContext.Provider value={{ user, role, privileges, register, login, loginWithGoogle, logout }}>
       {!loading && children}

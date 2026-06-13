@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'; 
 import { AuthProvider } from './context/AuthContext'; 
-import ProtectedRoute from './components/ProtectedRoute'; // Imported the protection firewall
+import ProtectedRoute from './components/ProtectedRoute'; 
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
@@ -22,6 +22,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import UnderReviewPage from './pages/auth/UnderReviewPage';
+import CompleteProfile from './pages/auth/CompleteProfile';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -86,6 +87,8 @@ function App() {
               </ProtectedRoute>
             } 
           />
+
+          <Route path="complete-profile" element={<CompleteProfile />} />
         </Route>
 
         {/* Secure Exam Interface - Requires student or consumer authentication */}
