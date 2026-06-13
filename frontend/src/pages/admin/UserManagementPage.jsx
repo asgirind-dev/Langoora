@@ -45,7 +45,7 @@ export default function UserManagementPage() {
     try {
       setLoading(true);
       
-      // 1. Fetch real registered users ( orderBy එක අයින් කරලා තියෙන්නේ Bug එක නැති කරන්න )
+    
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const registeredUsers = [];
       usersSnapshot.forEach((doc) => {
@@ -67,7 +67,7 @@ export default function UserManagementPage() {
       // 3. Combine both lists together
       const combinedUsers = [...preAuthUsers, ...registeredUsers];
 
-      // 4. Sort safely in JavaScript (joined තියෙන අයව උඩටම ගන්නවා)
+      
       combinedUsers.sort((a, b) => {
         const dateA = a.joined ? new Date(a.joined) : new Date(0);
         const dateB = b.joined ? new Date(b.joined) : new Date(0);
@@ -91,14 +91,14 @@ export default function UserManagementPage() {
   const toggleSuspend = async (uid, currentStatus, email) => {
     try {
       if (currentStatus === 'invited') {
-        // තවම register වෙලා නැති invited කෙනෙක් නම්, Invitation එක Cancel/Delete කරන්න
+        
         await deleteDoc(doc(db, 'pre_authorized_staff', email));
         setUsers(prev => prev.filter(u => u.id !== uid));
         alert("Staff invitation rescinded successfully.");
         return;
       }
 
-      // සාමාන්‍ය active/suspended යූසර් කෙනෙක් නම්:
+      
       const targetStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
       const userRef = doc(db, 'users', uid);
       await updateDoc(userRef, { status: targetStatus });
@@ -119,11 +119,11 @@ export default function UserManagementPage() {
       }
 
       if (user.status === 'invited') {
-        // Pre-auth collection එකේ කෙනෙක් නම් එතන වෙනස් කරන්න
+        
         const preAuthRef = doc(db, 'pre_authorized_staff', user.email);
         await updateDoc(preAuthRef, updatedData);
       } else {
-        // Real users collection එකේ කෙනෙක් නම්
+        
         const userRef = doc(db, 'users', user.id);
         await updateDoc(userRef, updatedData);
       }
@@ -212,10 +212,10 @@ export default function UserManagementPage() {
         privileges: createForm.privileges
       };
 
-      // Firestore සේව් එක
+      
       await setDoc(preAuthRef, newStaffNode);
 
-      // UI එක අප්ඩේට් එක
+      
       const uiNode = { id: formattedEmail, ...newStaffNode, status: 'invited', activityCount: 0 };
       setUsers(prev => [uiNode, ...prev]);
       

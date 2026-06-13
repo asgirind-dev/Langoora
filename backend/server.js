@@ -23,7 +23,7 @@ const db = getFirestore();
 const auth = getAuth();
 
 // ==========================================
-// 🚀 1. SECURE BACKEND REGISTER ENDPOINT (WITH AUTO STAFF UPGRADE)
+// 1. SECURE BACKEND REGISTER ENDPOINT (WITH AUTO STAFF UPGRADE)
 // ==========================================
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, role, userData } = req.body;
@@ -68,7 +68,7 @@ app.post('/api/auth/register', async (req, res) => {
       role: finalRole, // Assigned safe verified role
       status: finalRole === 'tutor' ? 'pending' : 'active',
       
-      // 📅 ✅ FIXED: Injecting explicit joined date node for Admin Dashboard lookup
+      // FIXED: Injecting explicit joined date node for Admin Dashboard lookup
       joined: new Date().toISOString().split('T')[0], 
       
       ...userData,
@@ -109,7 +109,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // ==========================================
-// 🔐 2. CENTRALIZED LOGIN & GOOGLE GATEWAY
+// CENTRALIZED LOGIN & GOOGLE GATEWAY
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
   const { email, password, idToken } = req.body;
@@ -210,7 +210,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==========================================
-// 🌟 3. COMPLETE GOOGLE REGISTRATION ENDPOINT
+// COMPLETE GOOGLE REGISTRATION ENDPOINT
 // ==========================================
 app.post('/api/auth/complete-google-registration', async (req, res) => {
   const { uid, email, name, phone, dob, role } = req.body;
@@ -262,5 +262,5 @@ app.post('/api/auth/complete-google-registration', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

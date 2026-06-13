@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); 
 
   // ==========================================
-  // 🚀 1. REGISTER WORKFLOW (No Auto-Login)
+  // 1. REGISTER WORKFLOW (No Auto-Login)
   // ==========================================
   const register = async (email, password, userData, userRole) => {
     try {
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Registration processing failed on the backend.');
       }
 
-      // 🌟 FIXED: Auto-login disabled for normal form registration. 
+      // FIXED: Auto-login disabled for normal form registration. 
       // User must redirect to login screen manually.
       return data; 
     } catch (error) {
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🔐 2. UNIFIED LOGIN GATEWAY WORKFLOW
+  // 2. UNIFIED LOGIN GATEWAY WORKFLOW
   // ==========================================
   const login = async (email, password) => {
     try {
@@ -89,7 +89,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🌐 3. NEW: GOOGLE SIGN-IN & UPGRADE WORKFLOW 
+  // 3. NEW: GOOGLE SIGN-IN & UPGRADE WORKFLOW 
   // ==========================================
   const loginWithGoogle = async () => {
     try {
@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Google Auth verification failed on backend');
       }
 
-      // 🌟 FIXED: Check if the backend says profile is incomplete
+      // FIXED: Check if the backend says profile is incomplete
       if (data.status === 'profile_incomplete') {
         return data; // Return the metadata containing uid, email, name to handle redirection
       }
@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🚪 4. LOGOUT WORKFLOW
+  // 4. LOGOUT WORKFLOW
   // ==========================================
   const logout = async () => {
     try {
@@ -147,7 +147,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🔄 5. SESSION RECOVERY HOOK
+  // 5. SESSION RECOVERY HOOK
   // ==========================================
   useEffect(() => {
     const checkPersistedAuthSession = () => {
