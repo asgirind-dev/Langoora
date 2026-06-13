@@ -41,7 +41,7 @@ exports.registerUser = async (req, res) => {
       email: formattedEmail,
       role: finalRole, 
       status: finalRole === 'tutor' ? 'pending' : 'active',
-      joined: new Date().toISOString().split('T')[0], // 📅 Admin panel එකට වැදගත් වෙන Joined Date එක
+      joined: new Date().toISOString().split('T')[0],
       ...userData,
       ...additionalStaffData, 
       createdAt: new Date().toISOString()
