@@ -1,3 +1,4 @@
+// src/context/AuthContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { 
   signInWithEmailAndPassword,
@@ -74,14 +75,20 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Authentication processing phase failed');
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Safe Extraction: Ensure user mapping naturally contains fallback status attributes
+      const authenticatedUser = {
+        ...data.user,
+        status: data.user.status || 'active' // Fallback to active if not explicitly set (e.g. admin/student)
+      };
 
-      setUser(data.user);
-      setRole(data.user.role);
-      setPrivileges(data.user.privileges || []);
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(authenticatedUser));
+
+      setUser(authenticatedUser);
+      setRole(authenticatedUser.role);
+      setPrivileges(authenticatedUser.privileges || []);
       
-      return data.user;
+      return authenticatedUser;
     } catch (error) {
       console.error("Identity Validation Session Failure:", error);
       throw error;
@@ -114,15 +121,20 @@ export const AuthProvider = ({ children }) => {
         return data; // Return the metadata containing uid, email, name to handle redirection
       }
 
+      const authenticatedUser = {
+        ...data.user,
+        status: data.user.status || 'active'
+      };
+
       // If user profile is already fully setup, commit to active session state
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('user', JSON.stringify(authenticatedUser));
 
-      setUser(data.user);
-      setRole(data.user.role);
-      setPrivileges(data.user.privileges || []);
+      setUser(authenticatedUser);
+      setRole(authenticatedUser.role);
+      setPrivileges(authenticatedUser.privileges || []);
 
-      return data.user;
+      return authenticatedUser;
     } catch (error) {
       console.error("Google Authentication Workflow Failure:", error);
       throw error;
@@ -166,11 +178,11 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('user');
         }
       }
-      loading && setLoading(false);
+      setLoading(false);
     };
 
     checkPersistedAuthSession();
-  }, [loading]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, role, privileges, register, login, loginWithGoogle, logout }}>
